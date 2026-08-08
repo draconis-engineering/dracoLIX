@@ -1,7 +1,7 @@
 // lib.rs
 
 use numpy::{PyArray2, PyArrayMethods};
-use pyo3::{Bound, PyResult, exceptions::PyValueError};
+use pyo3::{exceptions::PyValueError, Bound, PyResult};
 
 unsafe extern "C" {
     fn matmatmul_c(a: *const f64, b: *const f64, res: *mut f64, m: i32, n: i32, p: i32);
