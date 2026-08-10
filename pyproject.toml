@@ -1,4 +1,15 @@
+# pyproject.toml
 
-[package]
-name = "dracolix"
-version = "0.0.0.1"
+[build-system]
+requires = ["maturin>=1.5,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "dracolix" # Change this to match the exact package name in your Cargo.toml
+dynamic = ["version"]
+dependencies = [
+    "numpy>=1.20" # Assures Python users have numpy installed to read the PyArray types
+]
+
+[tool.maturin]
+features = ["pyo3/extension-module"]

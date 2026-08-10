@@ -9,21 +9,6 @@ contains
 
     ! ------------- CORE FUNCTIONS ------------- !
 
-    function matmatmul(a, b) result(res)
-        real(c_double), intent(in) :: a(:, :), b(:, :)
-        real(c_double) :: res(size(a, 1), size(b, 2))
-        integer(c_int) :: i, j, k
-
-        do i = 1, size(a, 1)
-            do j = 1, size(b, 2)
-                res(i, j) = 0.0
-                do k = 1, size(a, 2)
-                    res(i, j) = res(i, j) + a(i, k) * b(k, j)
-                end do
-            end do
-        end do
-    end function matmatmul
-
     function vecmatmul(a, b) result(res)
         real, intent(in) :: a(:), b(:, :)
         real :: res(size(b, 1))
@@ -36,19 +21,6 @@ contains
             end do
         end do
     end function vecmatmul
-
-    function matvecmul(a, b) result(res)
-        real, intent(in) :: a(:, :), b(:)
-        real :: res(size(a, 1))
-        integer :: i, j
-
-        do i = 1, size(a, 1)
-            res(i) = 0.0
-            do j = 1, size(a, 2)
-                res(i) = res(i) + a(i, j) * b(j)
-            end do
-        end do
-    end function matvecmul
 
     function dot(a, b) result(res)
         real, intent(in) :: a(:), b(:)
@@ -73,65 +45,30 @@ contains
         end do
     end function outer
 
-    ! ------------- SUBROUTINE WRAPPERS ------------- !
+    ! ------------- OPTIMIZED SUBROUTINE WRAPPERS ------------- !
 
     subroutine matmatmul_c(a, b, res, n, m, p) bind(C, name="matmatmul_c")
-        use, intrinsic :: iso_c_binding, only: c_double, c_int
-        implicit none (type, external)
-
         integer(c_int), intent(in), value :: n, m, p
         real(c_double), intent(in) :: a(n, m), b(m, p)
         real(c_double), intent(out) :: res(n, p)
 
-        res = matmatmul(a, b)
+        res = matmul(a, b)
 
     end subroutine matmatmul_c
-
-    subroutine vecmatmul_c(a, b, res, n) bind(C, name="vecmatmul_c")
-        use, intrinsic :: iso_c_binding, only: c_double, c_int
-        implicit none (type, external)
-
-        integer(c_int), intent(in), value :: n ! Dimension of the vectors
-        real(c_double), intent(in) :: a(n), b(n)
-        real(c_double), intent(out) :: res(n)
-
-        res = vecmatmul(a, b)
-
-    end subroutine vecmatmul_c
 
     subroutine matvecmul_c(a, b, res, n, m) bind(C, name="matvecmul_c")
         use, intrinsic :: iso_c_binding, only: c_double, c_int
         implicit none (type, external)
 
         integer(c_int), intent(in), value :: n, m
-        real(c_double), intent(in) :: a(n, m), b(n)
-        real(c_double), intent(out) :: res(m)
+        real(c_double), intent(in) :: a(n, m), b(m)
+        real(c_double), intent(out) :: res(n)
 
-        res = matvecmul(a, b)
+        ! Because 'a' is incoming from a C-contiguous Python array,
+        ! it will look transposed to Fortran. To perform Matrix * Vector (A * b),
+        ! we must mathematically multiply Vector * Matrix (b * A) inside Fortran.
+        res = matmul(b, a)
 
     end subroutine matvecmul_c
 
-    subroutine dot_c(a, b, res, n) bind(C, name="dot_c")
-        use, intrinsic :: iso_c_binding, only: c_double, c_int
-        implicit none (type, external)
-
-        integer(c_int), intent(in), value :: n
-        real(c_double), intent(in) :: a(n), b(n)
-        real(c_double), intent(out) :: res
-
-        res = dot(a, b)
-
-    end subroutine dot_c
-
-    subroutine outer_c(a, b, res, n) bind(C, name="outer_c")
-        use, intrinsic :: iso_c_binding, only: c_double, c_int
-        implicit none (type, external)
-
-        integer(c_int), intent(in), value :: n
-        real(c_double), intent(in) :: a(n), b(n)
-        real(c_double), intent(out) :: res(n, n)
-
-        res = outer(a, b)
-
-    end subroutine outer_c
 end module linalg
