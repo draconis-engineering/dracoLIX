@@ -93,9 +93,77 @@ public:
         return data[index];
     }
 
+    // Const subscript operator with bounds checking
     const T& operator[](int index) const {
         if (index < 0 || index >= size) throw std::out_of_range("Index out of bounds");
         return data[index];
+    }
+
+    // --------- //
+    // ARRAY OPS //
+    // --------- //
+
+    // NOTE: Should operators operate in-place or return a new array?
+    // Element-wise addition
+    Array<T> operator+(const Array<T>& other) const {
+        Array<T> result(*this);
+        for (int i = 0; i < size; ++i) result.data[i] += other.data[i];
+        return result;
+    }
+
+    // Element-wise subtraction
+    Array<T> operator-(const Array<T>& other) const {
+        Array<T> result(*this);
+        for (int i = 0; i < size; ++i) result.data[i] -= other.data[i];
+        return result;
+    }
+
+    // Element-wise multiplication | Dot Product
+    Array<T> operator*(const Array<T>& other) const {
+        Array<T> result(*this);
+        for (int i = 0; i < size; ++i) result.data[i] *= other.data[i];
+        return result;
+    }
+
+    // Element-wise division
+    Array<T> operator/(const Array<T>& other) const {
+        Array<T> result(*this);
+        for (int i = 0; i < size; ++i) result.data[i] /= other.data[i];
+        return result;
+    }
+
+    // ---------- //
+    // SCALAR OPS //
+    // ---------- //
+
+    Array<T> operator+(T scalar) const {
+        Array<T> result(*this);
+        for (int i = 0; i < size; ++i) result.data[i] += scalar;
+        return result;
+    }
+
+    Array<T> operator-(T scalar) const {
+        Array<T> result(*this);
+        for (int i = 0; i < size; ++i) result.data[i] -= scalar;
+        return result;
+    }
+
+    Array<T> operator*(T scalar) const {
+        Array<T> result(*this);
+        for (int i = 0; i < size; ++i) result.data[i] *= scalar;
+        return result;
+    }
+
+    Array<T> operator/(T scalar) const {
+        Array<T> result(*this);
+        for (int i = 0; i < size; ++i) result.data[i] /= scalar;
+        return result;
+    }
+
+    Array<T> operator^(T scalar) const {
+        Array<T> result(*this);
+        for (int i = 0; i < size; ++i) result.data[i] ^= scalar;
+        return result;
     }
 
     // Getters & Setters
@@ -106,21 +174,15 @@ public:
     int* getShape() const { return shape; }
 
     void print() const {
+        std::cout << "[ ";
         for (int i = 0; i < size; ++i) {
             std::cout << data[i] << " ";
         }
-        std::cout << "\n";
+        std::cout << "]\n";
     }
 
     // Resizing logic
     void reshape(int newSize) {
-        if (newSize != size) {
-            throw std::runtime_error("Reshape total elements must match current size.");
-        }
-        shape[0] = newSize;
-    }
-
-    void setSize(int newSize) {
         T* newData = new T[newSize]();
         int limit = (newSize < size) ? newSize : size;
         for (int i = 0; i < limit; ++i) newData[i] = data[i];

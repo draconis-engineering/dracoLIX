@@ -17,10 +17,10 @@ fn main() {
     // 3. Compile Fortran file into a clean static object file (-fPIC is required for PyO3)
     let gfstatus = Command::new("gfortran")
         .arg("-O3")
-        .arg("-march=native")
-        .arg("-ffast-math")
-        .arg("-funroll-loops")
-        .arg("-fexternal-blas")
+        .arg("-march=native") // Use native architecture for better performance
+        .arg("-ffast-math") // Use fast math for better performance
+        .arg("-funroll-loops") // Unroll loops for better performance
+        .arg("-fexternal-blas") // Use external BLAS library
         .arg("-fPIC") // Keep -fPIC so the code can be included in your Python extension
         .arg("-c") // Compile only, do not link (Dropped the conflicting '-shared' flag)
         .arg(&fortran_src)
