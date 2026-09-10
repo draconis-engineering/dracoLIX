@@ -1,8 +1,0 @@
-[package]
-name = "dracolix"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-numpy = "0.29.0"
-pyo3 = "0.29.0"

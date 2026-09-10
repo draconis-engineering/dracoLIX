@@ -1,0 +1,8 @@
+find_package(GTest QUIET)
+if(GTest_FOUND)
+    add_executable(test_array test_array.cpp)
+    target_link_libraries(test_array PRIVATE dracolix_core GTest::gtest_main)
+    add_test(NAME test_array COMMAND test_array)
+else()
+    message(STATUS "GTest not found - skipping C++ tests (install libgtest-dev)")
+endif()

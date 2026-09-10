@@ -1,1 +1,10 @@
 /target
+/build
+/_skbuild
+/.venv
+/__pycache__
+*.so
+*.o
+*.a
+*.pyc
+.DS_Store
