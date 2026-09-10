@@ -57,7 +57,7 @@ DracoLIX is designed as a multi-language system where each language has a specif
         │        │        │            │
         └────────┴────────┴────────────┘
                             │
-                     DracoLIX Core
+                  DracoLIX C++ Core
                             │
               ┌─────────────┼─────────────┐
               │             │             │
@@ -76,9 +76,9 @@ DracoLIX is designed as a multi-language system where each language has a specif
                        CPU / SIMD
 ```
 
-### Rust
+### C++
 
-Rust forms the foundation of DracoLIX.
+C++ forms the foundation of DracoLIX.
 
 It is responsible for:
 
