@@ -49,6 +49,8 @@ public:
         if (idx >= size_) throw std::out_of_range("Array index out of bounds");
         return data_[idx];
     }
+
+    // Const flat access (contiguous logical)
     const T& operator[](size_t idx) const {
         if (idx >= size_) throw std::out_of_range("Array index out of bounds");
         return data_[idx];
