@@ -4,21 +4,21 @@
 
 Mål: Gjøre prosjektet til en ordentlig numerisk runtime.
 
-- [ ] Bestem endelig prosjektstruktur
-- [ ] Definer core API
-- [ ] Definer DType-systemet
-- [ ] Implementer native scalar types
-- [ ] bool
-- [ ] signed integers
-- [ ] unsigned integers
-- [ ] f32
-- [ ] f64
-- [ ] Definer Array<T> / dynamisk array-representasjon
-- [ ] Shape + strides
-- [ ] Memory ownership
-- [ ] Contiguous memory
-- [ ] Views / slices
-- [ ] Grunnleggende testing
+- [x] Bestem endelig prosjektstruktur
+- [x] Definer core API
+- [x] Definer DType-systemet
+- [x] Implementer native scalar types
+  - [x] bool
+  - [x] signed integers (i32, i64)
+  - [ ] unsigned integers (reserved in enum, not yet dispatched)
+  - [x] f32
+  - [x] f64
+- [x] Definer Array<T> / dynamisk array-representasjon
+  - [x] Shape + strides
+  - [x] Memory ownership
+  - [x] Contiguous memory
+  - [x] Views / slices
+- [x] Grunnleggende testing
 - [ ] Benchmarking-infrastruktur
 
 Exit condition: Du kan lage og manipulere native DracoLIX-arrays uten NumPy.
@@ -27,33 +27,31 @@ Exit condition: Du kan lage og manipulere native DracoLIX-arrays uten NumPy.
 
 Mål: Bygge selve datamotoren.
 
-- [ ] Array
-  - [ ] dtype
-  - [ ] shape
-  - [ ] strides
-  - [ ] layout
-  - [ ] memory
-- [ ] Vector
-- [ ] Matrix
-- [ ] Tensor-basics
-- [ ] Indexing
-- [ ] Slicing
-- [ ] Reshape
-- [ ] Transpose
-- [ ] Copy / clone
-- [ ] Views
-- [ ] Type conversion
-- [ ] Broadcasting — basic
-- [ ] Element-wise operations
-  - [ ] +
-  - [ ] -
-  - [ ] *
-  - [ ] /
-- [ ] Reductions
-  - [ ] sum
-  - [ ] min
-  - [ ] max
-  - [ ] mean
+- [x] Array
+  - [x] dtype
+  - [x] shape
+  - [x] strides
+  - [x] layout (RowMajor / ColMajor)
+  - [x] memory (std::vector-backed)
+- [x] Vector / Matrix / Tensor-basics
+- [x] Indexing
+- [x] Slicing
+- [x] Reshape
+- [x] Transpose
+- [x] Copy / clone
+- [x] Views (ArrayView, non-owning strided)
+- [x] Type conversion (astype)
+- [x] Broadcasting — basic
+- [x] Element-wise operations
+  - [x] +
+  - [x] -
+  - [x] *
+  - [x] /
+- [x] Reductions
+  - [x] sum (global + axis)
+  - [x] min (global + axis)
+  - [x] max (global + axis)
+  - [x] mean (global + axis)
 
 Exit condition: DracoLIX kan fungere som en liten, selvstendig numerical array library.
 
@@ -61,13 +59,14 @@ Exit condition: DracoLIX kan fungere som en liten, selvstendig numerical array l
 
 Mål: Gjøre DracoLIX genuint nyttig for matematikk.
 
-- [ ] Matrix multiplication — prototype
-  - [ ] Optimalisert matrix multiplication
-  - [ ] Dot product
-  - [ ] Vector norms
-  - [ ] Transpose
-  - [ ] Matrix-vector multiplication
-  - [ ] Diagonal operations
+- [x] Matrix multiplication — prototype
+  - [x] Optimalisert matrix multiplication (cache-friendly ikj ordering, scalar baseline)
+  - [x] Dot product
+  - [x] Vector norms
+  - [x] Transpose
+  - [x] Matrix-vector multiplication
+  - [x] Diagonal operations
+  - [x] Batched matmul/matvec/dot (atleast-3D)
   - [ ] LU decomposition
   - [ ] QR decomposition
   - [ ] Cholesky decomposition
@@ -117,7 +116,7 @@ Ikke for å "slå NumPy" for enhver pris, men for å vite hvor du faktisk står.
 
 for relevante workloads.
 
-Exit condition: Du vet hvorfor DracoLIX er rask eller treg, i stedet for bare å anta at Rust = raskt.
+Exit condition: Du vet hvorfor DracoLIX er rask eller treg, i stedet for bare å anta at språket = raskt.
 
 ## Phase 4 — Python API
 
@@ -132,7 +131,7 @@ B = dlx.matrix(..., dtype=dlx.f64)
 C = A @ B
 ```
 
-- [ ] PyO3 bindings
+- [ ] nanobind bindings
 - [ ] Native Python objects
 - [ ] Python-side DTypes
 - [ ] Array API
@@ -148,7 +147,7 @@ Viktig mål:
 ```
 Python
    ↓
-PyO3
+nanobind
    ↓
 DracoLIX
 ```
@@ -159,7 +158,7 @@ Når core-en er stabil, blir Julia utrolig interessant.
 
 - [ ] Julia bindings
 - [ ] Native DracoLIX arrays
-- [ ] Julia ↔ Rust memory handling
+- [ ] Julia ↔ C++ memory handling
 - [ ] DType mapping
 - [ ] Julia broadcasting
 - [ ] Julia linear algebra interface
@@ -173,7 +172,7 @@ Da begynner DracoLIX å bli ordentlig multi-language:
                   │
         ┌─────────┼─────────┐
         ▼         ▼         ▼
-     Python     Julia      Rust
+     Python     Julia      C++
 ```     
 
 ## Phase 6 — Numerical Computing
