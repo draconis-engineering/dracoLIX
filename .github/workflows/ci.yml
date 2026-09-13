@@ -1,0 +1,95 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  linux:
+    name: linux (${{ matrix.label }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: cxx
+            fortran: "OFF"
+            apt: ninja-build
+          - label: fortran
+            fortran: "ON"
+            apt: ninja-build gfortran libopenblas-dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ${{ matrix.apt }}
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DDRACOLIX_USE_FORTRAN=${{ matrix.fortran }}
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  windows:
+    name: windows (msys2 / ucrt64)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-gcc-fortran
+            mingw-w64-ucrt-x86_64-openblas
+
+      - name: Configure (C++ core)
+        run: cmake -S . -B build-cxx -G Ninja -DCMAKE_BUILD_TYPE=Release -DDRACOLIX_USE_FORTRAN=OFF
+
+      - name: Build (C++ core)
+        run: cmake --build build-cxx
+
+      - name: Test (C++ core)
+        run: ctest --test-dir build-cxx --output-on-failure
+
+      - name: Configure (Fortran kernels)
+        run: cmake -S . -B build-ftn -G Ninja -DCMAKE_BUILD_TYPE=Release -DDRACOLIX_USE_FORTRAN=ON
+
+      - name: Build (Fortran kernels)
+        run: cmake --build build-ftn
+
+      - name: Test (Fortran kernels)
+        run: ctest --test-dir build-ftn --output-on-failure
+
+  python:
+    name: python (ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build deps
+        run: python -m pip install --upgrade pip pytest setuptools
+
+      - name: Build and install the Python binding
+        run: python -m pip install . --no-build-isolation
+
+      - name: Run the Python test suite
+        run: python -m pytest tests/test_python.py -q

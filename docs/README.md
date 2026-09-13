@@ -53,7 +53,7 @@ DracoLIX is designed as a multi-language system where each language has a specif
                  │                     │
         ┌────────┼────────┐            │
         │        │        │            │
-     Python    Julia     Rust          │
+     Python    Julia   (C++)          │
         │        │        │            │
         └────────┴────────┴────────────┘
                             │
@@ -69,7 +69,7 @@ DracoLIX is designed as a multi-language system where each language has a specif
                             │
               ┌─────────────┴─────────────┐
               │                           │
-        Rust Kernels                Fortran Kernels
+        C++ Kernels                Fortran Kernels (optional)
               │                           │
               └─────────────┬─────────────┘
                             │
@@ -92,11 +92,11 @@ It is responsible for:
 * Language bindings
 * Performance-critical kernels
 
-Rust provides the systems-level control required to make DracoLIX independent of external numerical runtimes.
+C++ provides the systems-level control required to make DracoLIX independent of external numerical runtimes.
 
 ### Fortran
 
-Fortran provides a second numerical backend, particularly for traditional HPC and numerical computing workloads.
+Fortran is an optional HPC backend. Enabled via `-DDRACOLIX_USE_FORTRAN=ON` at build time; off by default.
 
 It is intended for:
 
@@ -106,7 +106,7 @@ It is intended for:
 * Numerical solvers
 * Future HPC functionality
 
-Where appropriate, Fortran and Rust will communicate through well-defined native interfaces.
+Where appropriate, Fortran and C++ communicate through well-defined native interfaces (iso_c_binding).
 
 ### Python
 
@@ -253,7 +253,7 @@ Instead:
 ```text
 Python
   ↓
-PyO3
+nanobind
   ↓
 DracoLIX Core
   ↓
@@ -473,16 +473,16 @@ The architecture and roadmap described above represent the **direction of the pr
 # Roadmap
 
 - [x] Project foundation
-- [x] Initial Rust numerical core
-- [x] Initial Python interface
+- [x] C++ numerical core
+- [ ] Initial Python interface (nanobind binding)
 - [x] Matrix multiplication prototype
-- [ ] Native DType system
-- [ ] Native Array / Matrix types
-- [ ] Memory layout system
+- [x] Native DType system
+- [x] Native Array / Matrix types
+- [x] Memory layout system
 - [ ] Better benchmarking infrastructure
 - [ ] SIMD kernels
 - [ ] Parallel execution
-- [ ] Expanded linear algebra
+- [x] Expanded linear algebra (matmul, matvec, dot, norms, diag, batched)
 - [ ] Sparse matrices
 - [ ] Numerical solvers
 - [ ] Julia interface

@@ -1,25 +1,19 @@
 [build-system]
-requires = ["scikit-build-core>=0.9", "nanobind>=2.0"]
+requires = ["scikit-build-core>=0.10", "nanobind>=3.0"]
 build-backend = "scikit_build_core.build"
 
 [project]
 name = "dracolix"
-version = "0.1.0"
+version = "0.2.0"
 description = "DracoLIX - native C++ scientific computing core (Python binding outgoing-only)"
 readme = "docs/README.md"
-requires-python = ">=3.9"
-dependencies = ["numpy>=1.20"]
+requires-python = ">=3.10"
+dependencies = []  # zero numpy dependency: numpy is dev-only (benchmarks/tests)
 license = {text = "GPL-3.0-only"}
 
 [tool.scikit-build]
 cmake.build-type = "Release"
 wheel.packages = ["bindings/python/dracolix"]
 
-[tool.scikit-build.cmake.define]
-PYBIND_FINDPYTHON = "ON"
-
 [project.optional-dependencies]
 dev = ["pytest", "numpy"]
-
-# Placeholder until bindings/python/CMakeLists.txt is implemented
-# Build core only for now: cmake --build build

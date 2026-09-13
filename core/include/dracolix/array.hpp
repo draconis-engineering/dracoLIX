@@ -47,20 +47,20 @@ public:
     // Flat access (contiguous logical)
     T& operator[](size_t idx) {
         if (idx >= size_) throw std::out_of_range("Array index out of bounds");
-        return data_[idx];
+        return reinterpret_cast<T&>(data_[idx]);
     }
 
     // Const flat access (contiguous logical)
     const T& operator[](size_t idx) const {
         if (idx >= size_) throw std::out_of_range("Array index out of bounds");
-        return data_[idx];
+        return reinterpret_cast<const T&>(data_[idx]);
     }
 
     // 2-D accessor
     T& at(size_t i, size_t j) {
         if (ndim_ != 2) throw std::logic_error("at(i,j) requires ndim==2");
         if (i >= shape_[0] || j >= shape_[1]) throw std::out_of_range("at(i,j) out of bounds");
-        return data_[i * strides_[0] + j * strides_[1]];
+        return reinterpret_cast<T&>(data_[i * strides_[0] + j * strides_[1]]);
     }
     const T& at(size_t i, size_t j) const { return const_cast<Array*>(this)->at(i,j); }
 
@@ -72,7 +72,7 @@ public:
             if (indices[d] >= shape_[d]) throw std::out_of_range("at OOB");
             off += indices[d] * strides_[d];
         }
-        return data_[off];
+        return reinterpret_cast<T&>(data_[off]);
     }
     const T& at(const std::vector<size_t>& indices) const { return const_cast<Array*>(this)->at(indices); }
 
@@ -87,8 +87,10 @@ public:
     Array operator*(T scalar) const { return scalar_op(scalar, [](T a, T s){ return a*s; }); }
     Array operator/(T scalar) const { return scalar_op(scalar, [](T a, T s){ return a/s; }); }
 
-    T* data() noexcept { return data_.data(); }
-    const T* data() const noexcept { return data_.data(); }
+    T* data() noexcept { return reinterpret_cast<T*>(data_.data()); }
+    const T* data() const noexcept {
+        return reinterpret_cast<const T*>(data_.data());
+    }
     size_t size() const noexcept { return size_; }
     size_t ndim() const noexcept { return ndim_; }
     const std::vector<size_t>& shape() const noexcept { return shape_; }
@@ -100,7 +102,7 @@ public:
         size_t new_size = 1;
         for (auto s : new_shape) new_size *= s;
         if (new_size != size_) {
-            std::vector<T> nd(new_size, T{});
+            storage_t nd(new_size, T{});
             size_t keep = std::min(size_, new_size);
             std::copy(data_.begin(), data_.begin() + keep, nd.begin());
             data_.swap(nd);
@@ -248,7 +250,7 @@ public:
     }
 
     // ---- Reductions along axis (returns Array with that axis removed) ----
-    Array sum(size_t axis) const { return reduce_axis(axis, [](T a,T b){return a+b;}, T{}); }
+    Array sum(size_t axis) const { return reduce_axis(axis, [](T a,T b){return static_cast<T>(a+b);}, T{}); }
     Array min_axis(size_t axis) const {
         if (size_==0) throw std::logic_error("min_axis empty");
         return reduce_axis_minmax(axis, true);
@@ -278,7 +280,12 @@ public:
     }
 
 private:
-    std::vector<T> data_;
+    // std::vector<bool> is a bitset whose operator[] yields a proxy that cannot
+    // bind to bool&; store bool arrays byte-wise instead.
+    using storage_t =
+        std::conditional_t<std::is_same_v<T, bool>, std::vector<uint8_t>,
+                           std::vector<T>>;
+    storage_t data_;
     size_t size_ = 0;
     size_t ndim_ = 0;
     std::vector<size_t> shape_;
@@ -404,10 +411,10 @@ private:
                 out_flat += idx[d] * out.strides()[out_d];
                 --out_d;
             }
-            if (idx[axis]==0) out.data()[out_flat]=data_[flat];
+            if (idx[axis]==0) out.data()[out_flat]=static_cast<T>(data_[flat]);
             else {
-                if (is_min) out.data()[out_flat]= std::min(out.data()[out_flat], data_[flat]);
-                else out.data()[out_flat]= std::max(out.data()[out_flat], data_[flat]);
+                if (is_min) out.data()[out_flat]= std::min<T>(out.data()[out_flat], static_cast<T>(data_[flat]));
+                else out.data()[out_flat]= std::max<T>(out.data()[out_flat], static_cast<T>(data_[flat]));
             }
         }
         return out;
