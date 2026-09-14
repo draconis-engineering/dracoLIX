@@ -123,3 +123,80 @@ def arange(
     start: Scalar, stop: Scalar | None = None, step: Scalar | None = None
 ) -> Array:
     """Evenly spaced values; int args -> i64, any float arg -> f64."""
+
+# --------------------------------------------------------------------------
+# Sparse matrices
+# --------------------------------------------------------------------------
+class CsrMatrix:
+    """Compressed sparse row (CSR) matrix.
+
+    Only sparse-compatible dtypes (f32/f64/i32/i64) are allowed; bool is not
+    supported. Matmul follows the dense operands' dtype (both operands must match).
+    ``A @ B`` accepts another sparse matrix, a dense 1-D/2-D array (numpy or
+    dracolix Array, lists, or any buffer), and honors ``numpy.ndarray @ A``.
+    """
+
+    dtype: DType
+    shape: tuple[int, int]
+    rows: int
+    cols: int
+    nnz: int
+    row_ptr: Array  # length rows + 1, dtype i64
+    col_ind: Array  # column of each stored entry, dtype i64
+    values: Array  # stored entries
+    T: CscMatrix  # CSC of A^T
+
+    def __init__(self, data: Array | Sequence[Scalar] | Any, dtype: DType | None = None) -> None: ...
+    def to_dense(self) -> Array: ...
+    def to_csr(self) -> CsrMatrix: ...
+    def to_csc(self) -> CscMatrix: ...
+    def at(self, row: int, col: int) -> Scalar: ...
+    def __matmul__(self, other: CsrMatrix | CscMatrix | Array | Any) -> CsrMatrix | Array: ...
+
+    @staticmethod
+    def from_coo(
+        rows: int,
+        cols: int,
+        row_ind: Array | Sequence[int] | Any,
+        col_ind: Array | Sequence[int] | Any,
+        values: Array | Sequence[Scalar] | Any,
+        drop_zeros: bool = True,
+    ) -> CsrMatrix:
+        """Build from coordinates; duplicate entries are summed, and zero
+        entries are dropped when ``drop_zeros`` is True (default)."""
+
+class CscMatrix:
+    """Compressed sparse column (CSC) matrix.
+
+    Identical matmul story to :class:`CsrMatrix`; the CSC layout is kept by
+    converting to CSR internally for the multiply.
+    """
+
+    dtype: DType
+    shape: tuple[int, int]
+    rows: int
+    cols: int
+    nnz: int
+    col_ptr: Array  # length cols + 1, dtype i64
+    row_ind: Array  # row of each stored entry, dtype i64
+    values: Array  # stored entries
+    T: CsrMatrix  # CSR of A^T
+
+    def __init__(self, data: Array | Sequence[Scalar] | Any, dtype: DType | None = None) -> None: ...
+    def to_dense(self) -> Array: ...
+    def to_csr(self) -> CsrMatrix: ...
+    def to_csc(self) -> CscMatrix: ...
+    def at(self, row: int, col: int) -> Scalar: ...
+    def __matmul__(self, other: CsrMatrix | CscMatrix | Array | Any) -> CsrMatrix | Array: ...
+
+    @staticmethod
+    def from_coo(
+        rows: int,
+        cols: int,
+        row_ind: Array | Sequence[int] | Any,
+        col_ind: Array | Sequence[int] | Any,
+        values: Array | Sequence[Scalar] | Any,
+        drop_zeros: bool = True,
+    ) -> CscMatrix:
+        """Build from coordinates; duplicate entries are summed, and zero
+        entries are dropped when ``drop_zeros`` is True (default)."""

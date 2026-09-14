@@ -37,6 +37,14 @@ void test_from_coo_csr() {
   // zero-dropping: entries that sum to zero disappear
   auto B = CsrMatrix<double>::from_coo(1, 1, {0}, {0}, {5.0}, true);
   assert(B.nnz() == 1 && std::abs(B.at(0, 0) - 5.0) < 1e-12);
+  // duplicated entries that cancel to zero are dropped too
+  auto Z = CsrMatrix<double>::from_coo(2, 2, {0, 1, 1}, {0, 1, 1},
+                                       {1.0, 5.0, -5.0}, true);
+  assert(Z.nnz() == 1 && std::abs(Z.at(0, 0) - 1.0) < 1e-12);
+  assert(Z.at(1, 1) == 0.0);
+  auto Zk = CsrMatrix<double>::from_coo(2, 2, {0, 1, 1}, {0, 1, 1},
+                                        {1.0, 5.0, -5.0}, false);
+  assert(Zk.nnz() == 2 && Zk.at(1, 1) == 0.0);
   // out of bounds rejected
   bool threw = false;
   try {

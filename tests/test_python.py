@@ -4,12 +4,10 @@ The core must work with zero NumPy in the runtime; numpy is only used as an
 *optional* cross-check of the PEP 3118 buffer protocol interop.
 """
 
-import math
 import struct
 
-import pytest
-
 import dracolix as dlx
+import pytest
 
 
 # ---------------------------------------------------------------------------
@@ -203,13 +201,13 @@ def test_broadcast_mismatch_raises():
     a = dlx.array([1, 2, 3])
     b = dlx.array([1, 2])
     with pytest.raises(ValueError):
-        a + b
+        _ = a + b
 
 
 def test_unsupported_operand_returns_operators_notimplemented():
     a = dlx.array([1, 2, 3])
     with pytest.raises(TypeError):
-        a + "nope"
+        _ = a + "nope"
     assert (a == "nope") is False
 
 
@@ -222,7 +220,7 @@ def test_matmul_and_dot():
     w = dlx.array([3.0, 4.0])
     assert v @ w == 11.0
     with pytest.raises(TypeError):
-        dlx.array([True, False]) @ dlx.array([True, False])
+        _ = dlx.array([True, False]) @ dlx.array([True, False])
 
 
 # ---------------------------------------------------------------------------

@@ -2052,9 +2052,10 @@ nb::object csc_matmul(const DlxCsc &C, nb::object other) {
 }
 
 nb::object sparse_rmatmul(nb::object x, nb::object y) {
-  if (!is_array(x))
+  if (!(is_array(x) || PyObject_CheckBuffer(x.ptr()) ||
+        PyList_Check(x.ptr()) || PyTuple_Check(x.ptr())))
     return nb::not_implemented();
-  DlxArray &a = as_array(x);
+  DlxArray a = dlx_array(x, nb::none());
   if (a.dtype() == dracolix::DType::Bool)
     throw nb::type_error("dense @ sparse does not support bool arrays");
   if (a.ndim() != 2)

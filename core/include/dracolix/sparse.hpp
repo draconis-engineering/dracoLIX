@@ -176,6 +176,13 @@ void compress_grouped(size_t n_groups, const std::vector<size_t> &group,
     T v = values[k];
     if (!first && g == cur && !wo.empty() && wo.back() == w) {
       vo.back() = vo.back() + v; // merge duplicate entry
+      if (drop_zeros && vo.back() == T{}) {
+        // A merged sum cancels to zero: drop the entry entirely. ptr[g]
+        // still references the group start, which is untouched (a later
+        // group's ptr is set fresh from wo.size() on its first entry).
+        wo.pop_back();
+        vo.pop_back();
+      }
       continue;
     }
     if (first || g != cur) {

@@ -10,6 +10,8 @@ import sys as _sys
 from . import _dracolix_nb as _native
 from ._dracolix_nb import (
     Array,
+    CscMatrix,
+    CsrMatrix,
     DType,
     arange,
     array,
@@ -34,6 +36,8 @@ __version__ = _native.__version__
 
 __all__ = [
     "Array",
+    "CscMatrix",
+    "CsrMatrix",
     "DType",
     "arange",
     "array",
