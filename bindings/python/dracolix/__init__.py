@@ -7,13 +7,13 @@ numpy / memoryview through the PEP 3118 buffer protocol only.
 
 import sys as _sys
 
+from . import _dracolix_nb as _native
 from ._dracolix_nb import (
     Array,
     DType,
     arange,
     array,
     asarray,
-    bool as _native_bool,
     empty,
     f32,
     f64,
@@ -25,8 +25,12 @@ from ._dracolix_nb import (
 )
 
 # ``dlx.bool_`` is the bool dtype singleton (``bool`` is a Python builtin).
-bool_ = _native_bool
-del _native_bool
+# Note: the compiled module keeps its ``bool`` attribute too - the core
+# resolves dtypes through it.
+bool_ = _native.bool
+
+# Single source of truth for the version: it lives in the compiled extension.
+__version__ = _native.__version__
 
 __all__ = [
     "Array",
@@ -45,11 +49,10 @@ __all__ = [
     "zeros",
 ]
 
-__version__ = "0.2.0"
-
 _dtype_names = {"f32": f32, "f64": f64, "i32": i32, "i64": i64, "bool_": bool_}
 _dtype_by_name = {k: v for k, v in _dtype_names.items()}
 del _dtype_names
+
 
 def dtype(x) -> DType:
     """Return the dtype of an Array, or resolve a dtype name/singleton."""
@@ -64,8 +67,10 @@ def dtype(x) -> DType:
             raise ValueError(f"unknown dtype name: {x!r}")
     raise TypeError("expected Array, DType, or a dtype name string")
 
+
 def _version_info() -> tuple:
     return tuple(int(p) for p in __version__.split("."))
+
 
 __version_info__ = _version_info()
 del _version_info

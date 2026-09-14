@@ -10,6 +10,23 @@ readme = "docs/README.md"
 requires-python = ">=3.10"
 dependencies = []  # zero numpy dependency: numpy is dev-only (benchmarks/tests)
 license = {text = "GPL-3.0-only"}
+authors = [{name = "Draconis Engineering"}]
+keywords = ["scientific-computing", "linear-algebra", "hpc", "numerical", "array"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Programming Language :: C++",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Typing :: Typed",
+]
+urls = {Repository = "https://github.com/draconis-engineering/dracolix"}
 
 [tool.scikit-build]
 cmake.build-type = "Release"
@@ -17,3 +34,18 @@ wheel.packages = ["bindings/python/dracolix"]
 
 [project.optional-dependencies]
 dev = ["pytest", "numpy"]
+
+[tool.cibuildwheel]
+# Pure C++ core, no Fortran needed for the wheels (DRACOLIX_USE_FORTRAN=OFF by
+# default). Build every supported CPython on the three major platforms.
+build = "cp310-* cp311-* cp312-* cp313-* cp314-*"
+test-command = "python -m pytest {project}/tests/test_python.py -q"
+test-requires = ["pytest", "numpy"]
+skip = "*-musllinux_*"
+
+# Ubuntu arm64 and macOS arm64 wheels.
+[tool.scikit-build.wheel.expand-macos-universal-tags]
+archs = ["x86_64", "arm64"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

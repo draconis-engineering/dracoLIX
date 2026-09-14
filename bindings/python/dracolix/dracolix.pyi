@@ -1,6 +1,7 @@
 """Type stubs for the DracoLIX Python API (generated alongside the extension)."""
 
-from typing import Any, Iterable, Optional, Sequence, Tuple, Union
+from collections.abc import Sequence
+from typing import Any, TypeAlias
 
 # --------------------------------------------------------------------------
 # Dtypes
@@ -13,7 +14,6 @@ class DType:
     def __eq__(self, other: object) -> bool: ...
     def __ne__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
-    def __repr__(self) -> str: ...
 
 f32: DType
 f64: DType
@@ -21,7 +21,7 @@ i32: DType
 i64: DType
 bool_: DType
 
-Scalar = Union[bool, int, float]
+Scalar: TypeAlias = bool | int | float
 
 # --------------------------------------------------------------------------
 # Array
@@ -41,8 +41,8 @@ class Array:
     """
 
     dtype: DType
-    shape: Tuple[int, ...]
-    strides: Tuple[int, ...]
+    shape: tuple[int, ...]
+    strides: tuple[int, ...]
     ndim: int
     size: int
     itemsize: int
@@ -54,12 +54,11 @@ class Array:
         """Single-element arrays convert to the element; multi-element raises."""
 
     def __iter__(self) -> Any: ...  # yields scalars over the flattened array
-    def __getitem__(self, key: Union[int, slice, Tuple[Union[int, slice], ...]]) -> Union[Scalar, Array]: ...
-    def __setitem__(self, key: Union[int, Tuple[int, ...]], value: Scalar) -> None:
+    def __getitem__(
+        self, key: int | slice | tuple[int | slice, ...]
+    ) -> Scalar | Array: ...
+    def __setitem__(self, key: int | tuple[int, ...], value: Scalar) -> None:
         """Integer assignment only; slice assignment is not supported yet."""
-
-    def __repr__(self) -> str: ...
-    def __str__(self) -> str: ...
 
     # reductions
     def sum(self) -> Scalar: ...
@@ -72,30 +71,30 @@ class Array:
     def mean(self, axis: int) -> Array: ...
 
     # arithmetic dunders
-    def __add__(self, other: Union[Array, Scalar]) -> Array: ...
-    def __radd__(self, other: Union[Array, Scalar]) -> Array: ...
-    def __sub__(self, other: Union[Array, Scalar]) -> Array: ...
-    def __rsub__(self, other: Union[Array, Scalar]) -> Array: ...
-    def __mul__(self, other: Union[Array, Scalar]) -> Array: ...
-    def __rmul__(self, other: Union[Array, Scalar]) -> Array: ...
-    def __truediv__(self, other: Union[Array, Scalar]) -> Array: ...
-    def __rtruediv__(self, other: Union[Array, Scalar]) -> Array: ...
+    def __add__(self, other: Array | Scalar) -> Array: ...
+    def __radd__(self, other: Array | Scalar) -> Array: ...
+    def __sub__(self, other: Array | Scalar) -> Array: ...
+    def __rsub__(self, other: Array | Scalar) -> Array: ...
+    def __mul__(self, other: Array | Scalar) -> Array: ...
+    def __rmul__(self, other: Array | Scalar) -> Array: ...
+    def __truediv__(self, other: Array | Scalar) -> Array: ...
+    def __rtruediv__(self, other: Array | Scalar) -> Array: ...
     def __neg__(self) -> Array: ...
-    def __matmul__(self, other: Array) -> Union[Array, Scalar]: ...
-    def __eq__(self, other: Union[Array, Scalar]) -> "Array": ...  # bool array
-    def __ne__(self, other: Union[Array, Scalar]) -> "Array": ...  # bool array
+    def __matmul__(self, other: Array) -> Array | Scalar: ...
+    def __eq__(self, other: Array | Scalar) -> Array: ...  # bool array
+    def __ne__(self, other: Array | Scalar) -> Array: ...  # bool array
 
     # methods
     def copy(self) -> Array: ...
     def astype(self, dtype: DType) -> Array: ...
-    def reshape(self, shape: Union[int, Sequence[int]]) -> Array: ...
+    def reshape(self, shape: int | Sequence[int]) -> Array: ...
     def transpose(self) -> Array: ...
     def tolist(self) -> Any: ...
 
 # --------------------------------------------------------------------------
 # Constructors
 # --------------------------------------------------------------------------
-def array(data: Union[Array, Sequence[Scalar], Any], dtype: Optional[DType] = None) -> Array:
+def array(data: Array | Sequence[Scalar] | Any, dtype: DType | None = None) -> Array:
     """Create an array, always copying input data.
 
     ``dtype`` defaults to f64 (any float), i64 (all ints), or bool (all bools).
@@ -103,20 +102,24 @@ def array(data: Union[Array, Sequence[Scalar], Any], dtype: Optional[DType] = No
     the buffer protocol), and existing dracolix arrays.
     """
 
-def asarray(data: Union[Array, Sequence[Scalar], Any], dtype: Optional[DType] = None) -> Array:
+def asarray(data: Array | Sequence[Scalar] | Any, dtype: DType | None = None) -> Array:
     """Like ``array()`` but does not copy an existing dracolix Array."""
 
-def zeros(shape: Union[int, Sequence[int]], dtype: Optional[DType] = None) -> Array:
+def zeros(shape: int | Sequence[int], dtype: DType | None = None) -> Array:
     """Zero-filled array; default dtype is f64."""
 
-def ones(shape: Union[int, Sequence[int]], dtype: Optional[DType] = None) -> Array:
+def ones(shape: int | Sequence[int], dtype: DType | None = None) -> Array:
     """One-filled array; default dtype is f64."""
 
-def empty(shape: Union[int, Sequence[int]], dtype: Optional[DType] = None) -> Array:
+def empty(shape: int | Sequence[int], dtype: DType | None = None) -> Array:
     """Uninitialized-memory array (currently == zeros, the core zero-fills)."""
 
-def full(shape: Union[int, Sequence[int]], fill_value: Scalar, dtype: Optional[DType] = None) -> Array:
+def full(
+    shape: int | Sequence[int], fill_value: Scalar, dtype: DType | None = None
+) -> Array:
     """Array filled with ``fill_value``. dtype defaults from the fill value."""
 
-def arange(start: Scalar, stop: Optional[Scalar] = None, step: Optional[Scalar] = None) -> Array:
+def arange(
+    start: Scalar, stop: Scalar | None = None, step: Scalar | None = None
+) -> Array:
     """Evenly spaced values; int args -> i64, any float arg -> f64."""

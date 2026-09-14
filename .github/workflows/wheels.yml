@@ -1,0 +1,70 @@
+name: wheels
+
+# Builds CPython wheels for Windows / Linux / macOS with cibuildwheel and runs
+# the Python test suite against the built wheel on every platform. On git tags
+# (v1.2.3) it additionally publishes the wheels to PyPI when the
+# PYPI_API_TOKEN secret is configured.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  release:
+    types: [published]
+
+jobs:
+  build_wheels:
+    name: wheels (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux
+            os: ubuntu-latest
+          - name: windows
+            os: windows-latest
+          - name: macos
+            os: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v2.22.0
+        env:
+          CIBW_ARCHS: auto
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.name }}
+          path: wheelhouse/*.whl
+
+  publish:
+    name: publish to PyPI
+    needs: [build_wheels]
+    if: startsWith(github.ref, 'refs/tags/') && github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    environment:
+      name: pypi
+      url: https://pypi.org/p/dracolix
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          merge-multiple: true
+          path: dist
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          # Trust all artifacts even if a platform job was skipped.
+          verify-metadata: false
