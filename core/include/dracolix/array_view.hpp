@@ -14,12 +14,14 @@ public:
   ArrayView() = default;
   ArrayView(T *data, std::vector<size_t> shape, std::vector<size_t> strides)
       : data_(data), shape_(std::move(shape)), strides_(std::move(strides)) {
-    if (shape_.size() != strides_.size())
+    if (shape_.size() != strides_.size()) {
       throw std::invalid_argument("ArrayView: shape/strides size mismatch");
+    }
     ndim_ = shape_.size();
     size_ = 1;
-    for (auto s : shape_)
+    for (auto s : shape_) {
       size_ *= s;
+    }
   }
 
   // 1-D index via strided calculation (works for contiguous and strided)
@@ -38,12 +40,15 @@ public:
   }
 
   T &at(size_t i, size_t j) {
-    if (ndim_ != 2)
+    if (ndim_ != 2) {
       throw std::logic_error("ArrayView::at(i,j) requires ndim==2");
-    if (i >= shape_[0] || j >= shape_[1])
+    }
+    if (i >= shape_[0] || j >= shape_[1]) {
       throw std::out_of_range("at OOB");
+    }
     return data_[i * strides_[0] + j * strides_[1]];
   }
+
   const T &at(size_t i, size_t j) const {
     return const_cast<ArrayView *>(this)->at(i, j);
   }
@@ -60,6 +65,7 @@ public:
     }
     return data_[off];
   }
+
   const T &at(const std::vector<size_t> &indices) const {
     return const_cast<ArrayView *>(this)->at(indices);
   }
@@ -113,6 +119,7 @@ private:
 
 // Slice descriptor similar to Python slice(start, stop, step)
 struct Slice {
+
   std::optional<int64_t> start;
   std::optional<int64_t> stop;
   std::optional<int64_t> step; // default 1

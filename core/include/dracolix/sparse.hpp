@@ -63,10 +63,10 @@ public:
                             std::vector<size_t> col_ind, std::vector<T> values,
                             bool drop_zeros = true);
 
-// ---- transforms ----
-    CscMatrix<T> transpose() const;                          // CSC of A^T
-    CscMatrix<T> to_csc() const;                             // CSC of A
-    CsrMatrix transpose_csr() const { return transpose().to_csr(); }
+  // ---- transforms ----
+  CscMatrix<T> transpose() const; // CSC of A^T
+  CscMatrix<T> to_csc() const;    // CSC of A
+  CsrMatrix transpose_csr() const { return transpose().to_csr(); }
 
   // ---- computation ----
   Array<T> matvec(const Array<T> &x) const;      // y = A @ x
@@ -144,8 +144,10 @@ private:
 };
 
 // ===========================================================================
-// Implementation
+// // Implementation
+// ------------------------------------------------------------ //
 // ===========================================================================
+// //
 
 namespace detail {
 
@@ -224,8 +226,9 @@ inline std::vector<size_t> coo_order(size_t n, const std::vector<size_t> &a,
 
 } // namespace detail
 
-// ---- CsrMatrix: construction
-// -------------------------------------------------
+// --------------------------------- //
+// ---- CsrMatrix: construction ---- //
+// --------------------------------- //
 
 template <typename T>
 CsrMatrix<T> CsrMatrix<T>::from_coo(size_t rows, size_t cols,
@@ -283,8 +286,9 @@ CsrMatrix<T> CsrMatrix<T>::from_dense(const Array<T> &dense) {
   return from_coo(m, n, std::move(rows), std::move(cols), std::move(vals));
 }
 
-// ---- CsrMatrix: dense + transpose
-// ---------------------------------------------
+// -------------------------------------- //
+// ---- CsrMatrix: dense + transpose ---- //
+// -------------------------------------- //
 
 template <typename T> Array<T> CsrMatrix<T>::to_dense() const {
   Array<T> out({rows_, cols_});
@@ -305,7 +309,7 @@ template <typename T> CscMatrix<T> CsrMatrix<T>::transpose() const {
   std::partial_sum(out.col_ptr_.begin(), out.col_ptr_.end(),
                    out.col_ptr_.begin());
 
-out.row_ind_.resize(nnz());
+  out.row_ind_.resize(nnz());
   out.values_.resize(nnz());
   std::vector<size_t> cursor(out.col_ptr_.begin(), out.col_ptr_.end() - 1);
   for (size_t i = 0; i < rows_; ++i)
@@ -317,26 +321,27 @@ out.row_ind_.resize(nnz());
   return out;
 }
 
-template <typename T>
-CscMatrix<T> CsrMatrix<T>::to_csc() const {
-    // CSC of A (same orientation): col_ptr compresses the column histogram of
-    // A; row_ind holds each entry's row. Visiting entries in CSR order keeps
-    // rows ascending within every column, satisfying the CSC invariant.
-    CscMatrix<T> out(rows_, cols_);
-    out.col_ptr_.assign(cols_ + 1, 0);
-    for (size_t c : col_ind_) ++out.col_ptr_[c + 1];
-    std::partial_sum(out.col_ptr_.begin(), out.col_ptr_.end(), out.col_ptr_.begin());
+template <typename T> CscMatrix<T> CsrMatrix<T>::to_csc() const {
+  // CSC of A (same orientation): col_ptr compresses the column histogram of
+  // A; row_ind holds each entry's row. Visiting entries in CSR order keeps
+  // rows ascending within every column, satisfying the CSC invariant.
+  CscMatrix<T> out(rows_, cols_);
+  out.col_ptr_.assign(cols_ + 1, 0);
+  for (size_t c : col_ind_)
+    ++out.col_ptr_[c + 1];
+  std::partial_sum(out.col_ptr_.begin(), out.col_ptr_.end(),
+                   out.col_ptr_.begin());
 
-    out.row_ind_.resize(nnz());
-    out.values_.resize(nnz());
-    std::vector<size_t> cursor(out.col_ptr_.begin(), out.col_ptr_.end() - 1);
-    for (size_t i = 0; i < rows_; ++i)
-        for (size_t k = row_ptr_[i]; k < row_ptr_[i + 1]; ++k) {
-            size_t p = cursor[col_ind_[k]]++;
-            out.row_ind_[p] = i;
-            out.values_[p] = values_[k];
-        }
-    return out;
+  out.row_ind_.resize(nnz());
+  out.values_.resize(nnz());
+  std::vector<size_t> cursor(out.col_ptr_.begin(), out.col_ptr_.end() - 1);
+  for (size_t i = 0; i < rows_; ++i)
+    for (size_t k = row_ptr_[i]; k < row_ptr_[i + 1]; ++k) {
+      size_t p = cursor[col_ind_[k]]++;
+      out.row_ind_[p] = i;
+      out.values_[p] = values_[k];
+    }
+  return out;
 }
 
 // ---- CsrMatrix: computation
@@ -409,8 +414,9 @@ CsrMatrix<T> CsrMatrix<T>::matmul(const CsrMatrix<T> &B) const {
   return out;
 }
 
-// ---- CscMatrix: construction
-// ----------------------------------------------------
+// --------------------------------- //
+// ---- CscMatrix: construction ---- //
+// --------------------------------- //
 
 template <typename T>
 CscMatrix<T> CscMatrix<T>::from_coo(size_t rows, size_t cols,
@@ -468,8 +474,9 @@ CscMatrix<T> CscMatrix<T>::from_dense(const Array<T> &dense) {
   return from_coo(m, n, std::move(rows), std::move(cols), std::move(vals));
 }
 
-// ---- CscMatrix: dense + transpose
-// ------------------------------------------------
+// -------------------------------------- //
+// ---- CscMatrix: dense + transpose ---- //
+// -------------------------------------- //
 
 template <typename T> Array<T> CscMatrix<T>::to_dense() const {
   Array<T> out({rows_, cols_});
@@ -524,8 +531,9 @@ template <typename T> CsrMatrix<T> CscMatrix<T>::to_csr() const {
   return out;
 }
 
-// ---- CscMatrix: computation
-// ---------------------------------------------------------
+// -------------------------------- //
+// ---- CscMatrix: computation ---- //
+// -------------------------------- //
 
 template <typename T> Array<T> CscMatrix<T>::matvec(const Array<T> &x) const {
   if (x.ndim() != 1 || x.size() != cols_)

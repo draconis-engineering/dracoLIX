@@ -2,11 +2,12 @@
 // Phase 2a - Linear algebra prototype: atleast-3D batched support
 // Licensed under GPL-3.0-only - see LICENSE
 #include "array.hpp"
-#include "dracolix/kernels/gemm.hpp"
+#include "kernels/gemm.hpp"
 #include <cmath>
 #include <stdexcept>
 
-namespace dracolix::linalg {
+namespace dracolix {
+namespace linalg {
 
 // MatMul: C = A @ B
 // - 2-D: (m,n) @ (n,p) -> (m,p)
@@ -278,7 +279,7 @@ template <typename T> Array<T> matmul(const Array<T> &A, const Array<T> &B) {
       size_t offC = 0;
       for (size_t i = 0; i < res_batch.size(); ++i)
         offC += batch_idx[i] * C.strides()[i];
-      for (size_t i = 0; i < m; ++i)
+      for (size_t i = 0; i < m; ++i) {
         for (size_t k = 0; k < n; ++k) {
           T aik = *(A.data() + offA + i * A.strides()[A.ndim() - 2] +
                     k * A.strides()[A.ndim() - 1]);
@@ -288,6 +289,7 @@ template <typename T> Array<T> matmul(const Array<T> &A, const Array<T> &B) {
                 aik * *(B.data() + offB + k * B.strides()[B.ndim() - 2] +
                         j * B.strides()[B.ndim() - 1]);
         }
+      }
     }
     return C;
   }
@@ -491,4 +493,5 @@ template <typename T> Array<T> diag(const Array<T> &d) {
   return M;
 }
 
-} // namespace dracolix::linalg
+} // namespace linalg
+} // namespace dracolix
