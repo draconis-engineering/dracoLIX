@@ -36,7 +36,7 @@ target_include_directories(dracolix_core PUBLIC
 target_compile_options(
 	dracolix_core PRIVATE
 	$<$<AND:$<COMPILE_LANGUAGE:CXX>,$<OR:$<CXX_COMPILER_ID:GNU>,
-	$<CXX_COMPILER_ID:Clang>>>:-O3 -march=native -Wall -Wextra -Wpedantic>
+	$<CXX_COMPILER_ID:Clang>>>:-O3 -march=native -Wall -Wextra -Wpedantic -mavx2 -mfma>
 )
 
 if(DRACOLIX_USE_FORTRAN)

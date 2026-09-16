@@ -2,6 +2,7 @@
 // Phase 2a - Linear algebra prototype: atleast-3D batched support
 // Licensed under GPL-3.0-only - see LICENSE
 #include "array.hpp"
+#include "kernels/dispatch.hpp"
 #include "kernels/gemm.hpp"
 #include <cmath>
 #include <stdexcept>
@@ -104,7 +105,7 @@ inline Array<double> matmul<double>(const Array<double> &A,
 		size_t m = A.shape()[0], n = A.shape()[1], p = B.shape()[1];
 		Array<double> C({m, p});
 		std::fill(C.data(), C.data() + C.size(), 0.0);
-		kernels::gemm_f64(A.data(), B.data(), C.data(), m, n, p);
+		kernels::dispatch_gemm_f64(A.data(), B.data(), C.data(), m, n, p);
 		return C;
 	}
 	// N-D batched path
@@ -142,7 +143,7 @@ inline Array<double> matmul<double>(const Array<double> &A,
 		for (size_t i = 0; i < res_batch.size(); ++i)
 			offC += batch_idx[i] * C.strides()[i];
 		// gemm on m x n * n x p
-		kernels::gemm_f64(A.data() + offA, B.data() + offB, C.data() + offC, m,
+		kernels::dispatch_gemm_f64(A.data() + offA, B.data() + offB, C.data() + offC, m,
 						  n, p);
 	}
 	return C;
@@ -159,7 +160,7 @@ inline Array<float> matmul<float>(const Array<float> &A,
 		size_t m = A.shape()[0], n = A.shape()[1], p = B.shape()[1];
 		Array<float> C({m, p});
 		std::fill(C.data(), C.data() + C.size(), 0.0f);
-		kernels::gemm_f32(A.data(), B.data(), C.data(), m, n, p);
+		kernels::dispatch_gemm_f32(A.data(), B.data(), C.data(), m, n, p);
 		return C;
 	}
 	size_t m = A.shape()[A.ndim() - 2], n = A.shape()[A.ndim() - 1],
@@ -191,7 +192,7 @@ inline Array<float> matmul<float>(const Array<float> &A,
 		size_t offC = 0;
 		for (size_t i = 0; i < res_batch.size(); ++i)
 			offC += batch_idx[i] * C.strides()[i];
-		kernels::gemm_f32(A.data() + offA, B.data() + offB, C.data() + offC, m,
+		kernels::dispatch_gemm_f32(A.data() + offA, B.data() + offB, C.data() + offC, m,
 						  n, p);
 	}
 	return C;

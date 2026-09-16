@@ -93,14 +93,14 @@ Her ville jeg begynt å bli litt gal på performance.
 - [x] Baseline implementations (scalar `ikj` GEMM in `core/src/kernels/gemm.cpp`, driven via `bench_core`)
 - [ ] Memory profiling
 - [x] Cache-aware algorithms (`ikj` ordering, contiguous checks in `linalg.hpp:35`)
-- [ ] SIMD
+- [x] SIMD (`gemm_f64/f32_avx2` FMA in `core/src/kernels/gemm.cpp:33`, `-mavx2 -mfma`)
 - [ ] Multithreading
 - [ ] Parallel reductions
 - [ ] Thread pool
-- [ ] Kernel dispatch
-- [ ] CPU feature detection
-- [ ] Alignment
-- [ ] Optimized memory allocation
+- [x] Kernel dispatch (`core/include/dracolix/kernels/dispatch.hpp:18`, `select_gemm_kernel`, `dispatch_gemm_*`)
+- [x] CPU feature detection (`core/include/dracolix/cpu.hpp:12`, AVX/AVX2/AVX512F/FMA)
+- [x] Alignment (`core/include/dracolix/alloc.hpp:14`, 64B `AlignedAllocator`, `is_aligned`)
+- [x] Optimized memory allocation (`AlignedAllocator` via `Array` storage `core/include/dracolix/array.hpp:355`)
 
 Og viktig:
 

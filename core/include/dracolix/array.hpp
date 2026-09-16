@@ -1,4 +1,5 @@
 #pragma once
+#include "alloc.hpp"
 #include "array_view.hpp"
 #include "dtype.hpp"
 #include "layout.hpp"
@@ -343,10 +344,10 @@ template <typename T> class Array {
 	}
 
   private:
-	// std::vector<bool> is a bitset whose operator[] yields a proxy that cannot
-	// bind to bool&; store bool arrays byte-wise instead.
-	using storage_t = std::conditional_t<std::is_same_v<T, bool>,
-										 std::vector<uint8_t>, std::vector<T>>;
+	// Aligned storage — 64B for SIMD/cache line. bool stored byte-wise.
+	using alloc_t = AlignedAllocator<std::conditional_t<std::is_same_v<T,bool>, uint8_t, T>, kSimdAlign>;
+	using inner_t = std::conditional_t<std::is_same_v<T,bool>, uint8_t, T>;
+	using storage_t = std::vector<inner_t, alloc_t>;
 	storage_t data_;
 	size_t size_ = 0;
 	size_t ndim_ = 0;
