@@ -25,6 +25,8 @@ endif()
 
 # ---- Core (outgoing-only, no Python/Julia deps) ----
 add_library(dracolix_core STATIC ${DRACOLIX_CORE_SOURCES})
+# Must be PIC so it can be linked into the nanobind shared module on Linux
+set_target_properties(dracolix_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # FORCE C++20 directly onto this library and anything that uses it
 target_compile_features(dracolix_core PUBLIC cxx_std_20)
