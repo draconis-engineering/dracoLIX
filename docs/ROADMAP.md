@@ -67,13 +67,13 @@ Mål: Gjøre DracoLIX genuint nyttig for matematikk.
   - [x] Matrix-vector multiplication
   - [x] Diagonal operations
   - [x] Batched matmul/matvec/dot (atleast-3D)
-  - [ ] LU decomposition
+  - [x] LU decomposition (`core/include/dracolix/decomp.hpp:12`)
   - [ ] QR decomposition
   - [ ] Cholesky decomposition
-  - [ ] Matrix inverse
-  - [ ] Determinant
-  - [ ] Rank
-  - [ ] Linear system solving
+  - [x] Matrix inverse (`decomp::inverse`)
+  - [x] Determinant (`decomp::determinant`)
+  - [x] Rank (`decomp::rank`)
+  - [x] Linear system solving (`decomp::solve`, `solve_lu`, multi-RHS)
   - [ ] Eigenvalues / eigenvectors
   - [ ] SVD
   - [ ] Sparse

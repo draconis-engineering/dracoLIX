@@ -7,6 +7,7 @@
 #include "layout.hpp"
 #include "linalg.hpp"
 #include "sparse.hpp"
+#include "decomp.hpp"
 
 namespace dracolix {
 constexpr const char *version = "0.1.0-core";
