@@ -6,6 +6,9 @@
 #include <cstdlib>
 #include <new>
 #include <memory>
+#if defined(_WIN32) || defined(_WIN64)
+#include <malloc.h>
+#endif
 
 namespace dracolix {
 
@@ -26,10 +29,12 @@ struct AlignedAllocator {
     T* allocate(size_t n) {
         if (n == 0) return nullptr;
         size_t bytes = n * sizeof(T);
-        // aligned_alloc requires size multiple of alignment
         size_t aligned_bytes = (bytes + Align - 1) & ~(Align - 1);
         void* p = nullptr;
-#if defined(_ISOC11_SOURCE)
+#if defined(_WIN32) || defined(_WIN64)
+        p = _aligned_malloc(aligned_bytes, Align);
+        if (!p) throw std::bad_alloc();
+#elif defined(_ISOC11_SOURCE)
         p = std::aligned_alloc(Align, aligned_bytes);
         if (!p) throw std::bad_alloc();
 #else
@@ -38,7 +43,11 @@ struct AlignedAllocator {
         return static_cast<T*>(p);
     }
     void deallocate(T* p, size_t) noexcept {
+#if defined(_WIN32) || defined(_WIN64)
+        _aligned_free(p);
+#else
         std::free(p);
+#endif
     }
     template <typename U> struct rebind { using other = AlignedAllocator<U, Align>; };
     bool operator==(const AlignedAllocator&) const noexcept { return true; }

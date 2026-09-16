@@ -86,10 +86,10 @@ jobs:
           python-version: "3.12"
 
       - name: Install build deps
-        run: python -m pip install --upgrade pip pytest setuptools
+        run: python -m pip install --upgrade pip pytest setuptools scikit-build-core nanobind
 
       - name: Build and install the Python binding
-        run: python -m pip install . --no-build-isolation
+        run: python -m pip install . --no-build-isolation -v
 
       - name: Run the Python test suite
         run: python -m pytest tests/test_python.py -q
