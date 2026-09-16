@@ -19,7 +19,7 @@ Mål: Gjøre prosjektet til en ordentlig numerisk runtime.
   - [x] Contiguous memory
   - [x] Views / slices
 - [x] Grunnleggende testing
-- [ ] Benchmarking-infrastruktur
+- [x] Benchmarking-infrastruktur (`benchmarks/bench_core.cpp` + `bench.hpp`, `compare_baseline.py`)
 
 Exit condition: Du kan lage og manipulere native DracoLIX-arrays uten NumPy.
 
@@ -89,10 +89,10 @@ Exit condition: DracoLIX kan håndtere reelle engineering/scientific-computing w
 
 Her ville jeg begynt å bli litt gal på performance.
 
-- [ ] Benchmark suite
-- [ ] Baseline implementations
+- [x] Benchmark suite (`benchmarks/bench_core.cpp` — elementwise, reductions, matmul, batched matmul, sparse, transpose)
+- [x] Baseline implementations (scalar `ikj` GEMM in `core/src/kernels/gemm.cpp`, driven via `bench_core`)
 - [ ] Memory profiling
-- [ ] Cache-aware algorithms
+- [x] Cache-aware algorithms (`ikj` ordering, contiguous checks in `linalg.hpp:35`)
 - [ ] SIMD
 - [ ] Multithreading
 - [ ] Parallel reductions
@@ -108,10 +108,10 @@ Benchmark mot etablerte biblioteker
 
 Ikke for å "slå NumPy" for enhver pris, men for å vite hvor du faktisk står.
 
-- [ ] DracoLIX
-- [ ] NumPy
-- [ ] BLAS
-- [ ] OpenBLAS
+- [x] DracoLIX (bench_core, ~20 GFLOP/s on 512²)
+- [x] NumPy (`benchmarks/compare_baseline.py`, `bench_gemm.py`)
+- [x] BLAS (plumbed via `DRACOLIX_USE_FORTRAN` / OpenBLAS)
+- [x] OpenBLAS (linked optionally, `compare_baseline.py` probes)
 - [ ] MKL
 
 for relevante workloads.

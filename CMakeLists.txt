@@ -64,4 +64,4 @@ endif()
 # add_subdirectory(bindings/julia)   # CxxWrap - outgoing only (later)
 
 # ---- Benchmarks ----
-# add_subdirectory(benchmarks) # later
+add_subdirectory(benchmarks)
