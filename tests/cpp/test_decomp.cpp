@@ -35,4 +35,27 @@ void test_solve_multi_rhs() {
     std::cout << " solve multi-rhs ok\n";
 }
 
-int main(){ test_lu_solve_det_inverse(); test_solve_multi_rhs(); std::cout<<"All decomp tests passed\n"; return 0; }
+void test_qr() {
+    Array<double> A({3,2}); A.at(0,0)=1; A.at(0,1)=1; A.at(1,0)=1; A.at(1,1)=0; A.at(2,0)=0; A.at(2,1)=1;
+    auto f = qr(A);
+    auto Qt = f.Q.transpose();
+    auto QtQ = linalg::matmul(Qt, f.Q);
+    assert(std::abs(QtQ.at(0,0)-1)<1e-9 && std::abs(QtQ.at(1,1)-1)<1e-9 && std::abs(QtQ.at(0,1))<1e-9);
+    auto QR = linalg::matmul(f.Q, f.R);
+    for(size_t i=0;i<3;++i) for(size_t j=0;j<2;++j) assert(std::abs(QR.at(i,j)-A.at(i,j))<1e-9);
+    std::cout << " qr ok\n";
+}
+
+void test_cholesky() {
+    Array<double> S({2,2}); S.at(0,0)=4; S.at(0,1)=2; S.at(1,0)=2; S.at(1,1)=3;
+    auto L = cholesky(S);
+    auto LLt = linalg::matmul(L, L.transpose());
+    for(size_t i=0;i<2;++i) for(size_t j=0;j<2;++j) assert(std::abs(LLt.at(i,j)-S.at(i,j))<1e-9);
+    Array<double> b({2}); b[0]=1; b[1]=2;
+    auto x = solve_cholesky(L,b);
+    auto Sx = linalg::matvec(S,x);
+    assert(std::abs(Sx[0]-1)<1e-9 && std::abs(Sx[1]-2)<1e-9);
+    std::cout << " cholesky ok\n";
+}
+
+int main(){ test_lu_solve_det_inverse(); test_solve_multi_rhs(); test_qr(); test_cholesky(); std::cout<<"All decomp tests passed\n"; return 0; }

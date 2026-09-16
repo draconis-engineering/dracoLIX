@@ -154,4 +154,95 @@ size_t rank(const Array<T>& A, double tol = 1e-9) {
     return r;
 }
 
+// ---------------------------------------------------------------------------
+// QR decomposition (Modified Gram-Schmidt) — A m×n -> Q m×n, R n×n
+// For m>=n. Q has orthonormal columns, R upper triangular. A = Q R.
+// ---------------------------------------------------------------------------
+template <typename T>
+struct QrResult {
+    Array<T> Q; // m x n
+    Array<T> R; // n x n
+};
+
+template <typename T>
+QrResult<T> qr(const Array<T>& A) {
+    if (A.ndim()!=2) throw std::invalid_argument("qr requires 2-D");
+    size_t m = A.shape()[0], n = A.shape()[1];
+    if (m < n) throw std::invalid_argument("qr requires m>=n");
+    Array<T> Q({m,n});
+    Array<T> R({n,n});
+    std::fill(R.data(), R.data()+R.size(), T{});
+    // copy columns of A into Q as working vectors
+    for (size_t j=0;j<n;++j) for (size_t i=0;i<m;++i) Q.at(i,j)=A.at(i,j);
+
+    for (size_t j=0;j<n;++j) {
+        // orthogonalize against previous q's
+        for (size_t i=0;i<j;++i) {
+            T dot = T{};
+            for (size_t k=0;k<m;++k) dot += Q.at(k,i) * Q.at(k,j);
+            R.at(i,j)=dot;
+            for (size_t k=0;k<m;++k) Q.at(k,j) -= dot * Q.at(k,i);
+        }
+        // normalize
+        double norm=0;
+        for (size_t k=0;k<m;++k) norm += (double)Q.at(k,j)*(double)Q.at(k,j);
+        norm = std::sqrt(norm);
+        if (norm < 1e-12) throw std::runtime_error("qr: rank-deficient column");
+        R.at(j,j)=static_cast<T>(norm);
+        for (size_t k=0;k<m;++k) Q.at(k,j) = Q.at(k,j) / static_cast<T>(norm);
+    }
+    return {std::move(Q), std::move(R)};
+}
+
+// ---------------------------------------------------------------------------
+// Cholesky decomposition — A n×n symmetric positive-definite -> L lower
+// such that A = L L^T. Returns L.
+// ---------------------------------------------------------------------------
+template <typename T>
+Array<T> cholesky(const Array<T>& A) {
+    if (A.ndim()!=2) throw std::invalid_argument("cholesky requires 2-D");
+    size_t n = A.shape()[0];
+    if (A.shape()[1]!=n) throw std::invalid_argument("cholesky requires square");
+    Array<T> L({n,n});
+    std::fill(L.data(), L.data()+L.size(), T{});
+    for (size_t i=0;i<n;++i) {
+        for (size_t j=0;j<=i;++j) {
+            T sum = A.at(i,j);
+            for (size_t k=0;k<j;++k) sum -= L.at(i,k)*L.at(j,k);
+            if (i==j) {
+                if ((double)sum <= 0) throw std::runtime_error("cholesky: not positive-definite");
+                L.at(i,j)=static_cast<T>(std::sqrt((double)sum));
+            } else {
+                L.at(i,j)=sum / L.at(j,j);
+            }
+        }
+    }
+    return L;
+}
+
+// Solve via Cholesky: A = L L^T
+template <typename T>
+Array<T> solve_cholesky(const Array<T>& L, const Array<T>& b) {
+    size_t n = L.shape()[0];
+    bool vec = b.ndim()==1;
+    if (vec && b.size()!=n) throw std::invalid_argument("solve_cholesky: size mismatch");
+    if (!vec && (b.ndim()!=2 || b.shape()[0]!=n)) throw std::invalid_argument("solve_cholesky: shape mismatch");
+    size_t nrhs = vec?1:b.shape()[1];
+    // forward L y = b
+    Array<T> y(b.shape());
+    if (vec) {
+        for (size_t i=0;i<n;++i){ T acc=b[i]; for(size_t k=0;k<i;++k) acc-=L.at(i,k)*y[k]; y[i]=acc/L.at(i,i); }
+    } else {
+        for (size_t j=0;j<nrhs;++j) for (size_t i=0;i<n;++i){ T acc=b.at(i,j); for(size_t k=0;k<i;++k) acc-=L.at(i,k)*y.at(k,j); y.at(i,j)=acc/L.at(i,i); }
+    }
+    // back L^T x = y
+    Array<T> x(y.shape());
+    if (vec) {
+        for (int i=(int)n-1;i>=0;--i){ T acc=y[i]; for(size_t k=i+1;k<n;++k) acc-=L.at(k,i)*x[k]; x[i]=acc/L.at(i,i); }
+    } else {
+        for (size_t j=0;j<nrhs;++j) for (int i=(int)n-1;i>=0;--i){ T acc=y.at(i,j); for(size_t k=i+1;k<n;++k) acc-=L.at(k,i)*x.at(k,j); x.at(i,j)=acc/L.at(i,i); }
+    }
+    return x;
+}
+
 } // namespace dracolix::decomp

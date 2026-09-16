@@ -68,8 +68,8 @@ Mål: Gjøre DracoLIX genuint nyttig for matematikk.
   - [x] Diagonal operations
   - [x] Batched matmul/matvec/dot (atleast-3D)
   - [x] LU decomposition (`core/include/dracolix/decomp.hpp:12`)
-  - [ ] QR decomposition
-  - [ ] Cholesky decomposition
+  - [x] QR decomposition (`decomp::qr`, Modified Gram-Schmidt, `tests/cpp/test_decomp.cpp:22`)
+  - [x] Cholesky decomposition (`decomp::cholesky`, `solve_cholesky`)
   - [x] Matrix inverse (`decomp::inverse`)
   - [x] Determinant (`decomp::determinant`)
   - [x] Rank (`decomp::rank`)
