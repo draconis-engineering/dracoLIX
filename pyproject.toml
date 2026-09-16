@@ -43,6 +43,12 @@ test-command = "python -m pytest {project}/tests/test_python.py -q"
 test-requires = ["pytest", "numpy"]
 skip = "*-musllinux_*"
 
+[tool.cibuildwheel.linux]
+# NumPy 2.5+ only ships manylinux_2_28 wheels; the default manylinux2014
+# image (GCC 10.2.1) forces a source build and fails with "NumPy requires GCC >=10.3"
+manylinux-x86_64-image = "manylinux_2_28"
+manylinux-aarch64-image = "manylinux_2_28"
+
 # Ubuntu arm64 and macOS arm64 wheels.
 [tool.scikit-build.wheel.expand-macos-universal-tags]
 archs = ["x86_64", "arm64"]
