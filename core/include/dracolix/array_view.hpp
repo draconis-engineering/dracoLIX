@@ -120,7 +120,6 @@ template <typename T> class ArrayView {
 
 // Slice descriptor similar to Python slice(start, stop, step)
 struct Slice {
-
 	std::optional<int64_t> start;
 	std::optional<int64_t> stop;
 	std::optional<int64_t> step; // default 1
