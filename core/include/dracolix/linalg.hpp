@@ -143,8 +143,8 @@ inline Array<double> matmul<double>(const Array<double> &A,
 		for (size_t i = 0; i < res_batch.size(); ++i)
 			offC += batch_idx[i] * C.strides()[i];
 		// gemm on m x n * n x p
-		kernels::dispatch_gemm_f64(A.data() + offA, B.data() + offB, C.data() + offC, m,
-						  n, p);
+		kernels::dispatch_gemm_f64(A.data() + offA, B.data() + offB,
+								   C.data() + offC, m, n, p);
 	}
 	return C;
 }
@@ -192,8 +192,8 @@ inline Array<float> matmul<float>(const Array<float> &A,
 		size_t offC = 0;
 		for (size_t i = 0; i < res_batch.size(); ++i)
 			offC += batch_idx[i] * C.strides()[i];
-		kernels::dispatch_gemm_f32(A.data() + offA, B.data() + offB, C.data() + offC, m,
-						  n, p);
+		kernels::dispatch_gemm_f32(A.data() + offA, B.data() + offB,
+								   C.data() + offC, m, n, p);
 	}
 	return C;
 }

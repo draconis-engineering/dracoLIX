@@ -46,7 +46,7 @@ class Array:
     ndim: int
     size: int
     itemsize: int
-    layout: str  # "row-major" | "col-major"
+    layout: str  # "row-major" | "col-major" || switch to boolean flag for this?
     T: Array  # 2-D transpose
 
     def __len__(self) -> int: ...

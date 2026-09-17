@@ -48,15 +48,15 @@ DracoLIX is designed as a multi-language system where each language has a specif
                          DracoLIX
                             │
                  ┌──────────┴──────────┐
-                 │                     │
+                 ▼                     ▼
             Public APIs            Core Runtime
                  │                     │
         ┌────────┼────────┐            │
         │        │        │            │
-     Python    Julia   (C++)          │
+     Python    Julia    (C++)          │
         │        │        │            │
-        └────────┴────────┴────────────┘
-                            │
+        └────────┴────────┴─┬──────────┘
+                            ▼
                   DracoLIX C++ Core
                             │
               ┌─────────────┼─────────────┐
@@ -64,7 +64,7 @@ DracoLIX is designed as a multi-language system where each language has a specif
            Arrays        DTypes        Memory
               │             │             │
               └─────────────┼─────────────┘
-                            │
+                            ▼
                      Compute Runtime
                             │
               ┌─────────────┴─────────────┐
@@ -72,7 +72,7 @@ DracoLIX is designed as a multi-language system where each language has a specif
         C++ Kernels                Fortran Kernels (optional)
               │                           │
               └─────────────┬─────────────┘
-                            │
+                            ▼
                        CPU / SIMD
 ```
 
@@ -176,7 +176,7 @@ Conceptually:
                   DType
                     │
         ┌───────────┼───────────┐
-        │           │           │
+        ▼           ▼           ▼
      Integer      Float      Complex
         │           │           │
      i8/i16/...   f32/f64    c64/c128
@@ -243,7 +243,7 @@ Python
   ↓
 NumPy
   ↓
-C
+  C
   ↓
 Rust
 ```
@@ -292,7 +292,7 @@ Conceptually:
                     Kernel Dispatch
                           │
               ┌───────────┼───────────┐
-              │           │           │
+              ▼           ▼           ▼
             Scalar      SIMD      Parallel
               │           │           │
               └───────────┼───────────┘
@@ -517,7 +517,3 @@ Instead of building another abstraction layer around existing numerical software
 DracoLIX is open source and intended to remain freely available to the community.
 
 See the repository license for details.
-
----
-
-**Draconis Engineering** - *Semper Ultra*
