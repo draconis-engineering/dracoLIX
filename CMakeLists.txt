@@ -35,11 +35,20 @@ target_include_directories(dracolix_core PUBLIC
 	core/include
 )
 
-target_compile_options(
-	dracolix_core PRIVATE
-	$<$<AND:$<COMPILE_LANGUAGE:CXX>,$<OR:$<CXX_COMPILER_ID:GNU>,
-	$<CXX_COMPILER_ID:Clang>>>:-O3 -march=native -Wall -Wextra -Wpedantic -mavx2 -mfma>
-)
+# x86 SIMD + warnings only for GCC and Clang (NOT AppleClang/MSVC, where
+# -mavx2/-mfma/-march=native are undefined or unsupported on arm64). gated to
+# C++ so a mixed Fortran build does not receive C++-only flags.
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+	target_compile_options(dracolix_core PRIVATE
+		$<$<COMPILE_LANGUAGE:CXX>:-O3>
+		$<$<COMPILE_LANGUAGE:CXX>:-march=native>
+		$<$<COMPILE_LANGUAGE:CXX>:-Wall>
+		$<$<COMPILE_LANGUAGE:CXX>:-Wextra>
+		$<$<COMPILE_LANGUAGE:CXX>:-Wpedantic>
+		$<$<COMPILE_LANGUAGE:CXX>:-mavx2>
+		$<$<COMPILE_LANGUAGE:CXX>:-mfma>
+	)
+endif()
 
 if(DRACOLIX_USE_FORTRAN)
 	# Fortran runtime + BLAS

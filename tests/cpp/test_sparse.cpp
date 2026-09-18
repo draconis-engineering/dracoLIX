@@ -64,7 +64,9 @@ void test_dense_roundtrip() {
 	auto back = S.to_dense();
 	for (size_t i = 0; i < d.size(); ++i)
 		assert(std::abs(back[i] - d[i]) < 1e-12);
-	assert(S.nnz() == 10); // 12 entries minus 4 zeros in row 1
+	// 12 entries; zeros at i in {1,4,7,10} and i == 0 (value 0.0) drop ->
+	// stored entries are {2,3,5,6,8,9,11}.
+	assert(S.nnz() == 7);
 	std::cout << " csr from_dense/to_dense OK\n";
 }
 
