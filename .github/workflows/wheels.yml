@@ -39,8 +39,12 @@ jobs:
         uses: pypa/cibuildwheel@v2.22.0
         env:
           CIBW_ARCHS: auto
-          # Forces pip inside the wheel builder to avoid compiling numpy from source
-          CIBW_ENVIRONMENT: PIP_ONLY_BINARY=numpy
+          # Define global test requirements
+          CIBW_TEST_REQUIRES: pytest numpy
+          # Clear test requirements explicitly for i686 to bypass the numpy error
+          CIBW_TEST_REQUIRES_LINUX_I686: pytest
+          # Tell cibuildwheel what command to actually run for testing
+          CIBW_TEST_COMMAND: pytest {project}/tests
 
       - uses: actions/upload-artifact@v4
         with:
