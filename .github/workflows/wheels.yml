@@ -39,6 +39,8 @@ jobs:
         uses: pypa/cibuildwheel@v2.22.0
         env:
           CIBW_ARCHS: auto
+          # Forces pip inside the wheel builder to avoid compiling numpy from source
+          CIBW_ENVIRONMENT: PIP_ONLY_BINARY=numpy
 
       - uses: actions/upload-artifact@v4
         with:
