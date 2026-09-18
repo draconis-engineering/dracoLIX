@@ -2,9 +2,17 @@
 // CPU feature detection — Phase 3
 // Licensed under GPL-3.0-only
 #include <string>
+
 #if defined(__x86_64__) || defined(_M_X64) || defined(__i386__)
-#include <cpuid.h>
+  #if defined(_MSC_VER)
+    #include <intrin.h>
+  #else
+    #include <cpuid.h>
+  #endif
 #endif
+
+namespace dracolix {
+
 
 namespace dracolix::cpu {
 
