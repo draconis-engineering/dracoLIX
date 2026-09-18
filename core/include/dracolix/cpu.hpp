@@ -1,8 +1,11 @@
 #pragma once
 // CPU feature detection — Phase 3
 // Licensed under GPL-3.0-only
+#include <cstring>
 #include <string>
-#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__)
+#if defined(_MSC_VER)
+#include <intrin.h>
+#elif defined(__x86_64__) || defined(__i386__)
 #include <cpuid.h>
 #endif
 
@@ -18,38 +21,39 @@ struct Features {
 	std::string brand;
 };
 
+// Fill regs[4] with eax, ebx, ecx, edx for the given CPUID leaf/subleaf.
+// GCC/Clang: cpuid.h; MSVC: intrin.h (__cpuidex).
+inline void cpuid(unsigned int regs[4], unsigned int leaf, unsigned int subleaf) {
+#if defined(_MSC_VER)
+	__cpuidex(reinterpret_cast<int *>(regs), leaf, subleaf);
+#elif defined(__x86_64__) || defined(__i386__)
+	__get_cpuid_count(leaf, subleaf, &regs[0], &regs[1], &regs[2], &regs[3]);
+#else
+	(void)regs;
+	(void)leaf;
+	(void)subleaf;
+	std::memset(regs, 0, 4 * sizeof(unsigned int));
+#endif
+}
+
 inline Features detect() {
 	Features f;
-#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__)
-	unsigned int eax, ebx, ecx, edx;
-	if (__get_cpuid(1, &eax, &ebx, &ecx, &edx)) {
-		f.sse2 = edx & (1u << 26);
-		f.sse4_1 = ecx & (1u << 19);
-		f.avx = ecx & (1u << 28);
-		f.fma = ecx & (1u << 12);
-	}
-	if (__get_cpuid_count(7, 0, &eax, &ebx, &ecx, &edx)) {
-		f.avx2 = ebx & (1u << 5);
-		f.avx512f = ebx & (1u << 16);
-	}
+#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
+	unsigned int regs[4];
+	cpuid(regs, 1, 0);
+	f.sse2 = regs[3] & (1u << 26);
+	f.sse4_1 = regs[2] & (1u << 19);
+	f.avx = regs[2] & (1u << 28);
+	f.fma = regs[2] & (1u << 12);
+	cpuid(regs, 7, 0);
+	f.avx2 = regs[1] & (1u << 5);
+	f.avx512f = regs[1] & (1u << 16);
 	// brand string (optional)
 	char brand[49] = {0};
-	unsigned int regs[4];
-	__get_cpuid(0x80000002, &eax, &ebx, &ecx, &edx);
-	*reinterpret_cast<unsigned int *>(&brand[0]) = eax;
-	*reinterpret_cast<unsigned int *>(&brand[4]) = ebx;
-	*reinterpret_cast<unsigned int *>(&brand[8]) = ecx;
-	*reinterpret_cast<unsigned int *>(&brand[12]) = edx;
-	__get_cpuid(0x80000003, &eax, &ebx, &ecx, &edx);
-	*reinterpret_cast<unsigned int *>(&brand[16]) = eax;
-	*reinterpret_cast<unsigned int *>(&brand[20]) = ebx;
-	*reinterpret_cast<unsigned int *>(&brand[24]) = ecx;
-	*reinterpret_cast<unsigned int *>(&brand[28]) = edx;
-	__get_cpuid(0x80000004, &eax, &ebx, &ecx, &edx);
-	*reinterpret_cast<unsigned int *>(&brand[32]) = eax;
-	*reinterpret_cast<unsigned int *>(&brand[36]) = ebx;
-	*reinterpret_cast<unsigned int *>(&brand[40]) = ecx;
-	*reinterpret_cast<unsigned int *>(&brand[44]) = edx;
+	for (unsigned int leaf = 0x80000002; leaf <= 0x80000004; ++leaf) {
+		cpuid(regs, leaf, 0);
+		std::memcpy(brand + (leaf - 0x80000002) * 16, regs, 16);
+	}
 	f.brand = std::string(brand);
 	// trim
 	f.brand.erase(f.brand.find_last_not_of(" \0") + 1);

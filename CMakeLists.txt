@@ -61,8 +61,12 @@ if(DRACOLIX_USE_FORTRAN)
 endif()
 
 # ---- Tests (C++ only, no bindings) ----
-enable_testing()
-add_subdirectory(tests/cpp)
+# Skipped during wheel builds (SKBUILD) so wheels don't compile needless
+# test/benchmark executables (bench_core prints GCC's __VERSION__ macro).
+if(NOT SKBUILD)
+	enable_testing()
+	add_subdirectory(tests/cpp)
+endif()
 
 # ---- Language bindings are separate, depend on dracolix_core ----
 # The Python bindings build either:
@@ -75,4 +79,6 @@ endif()
 # add_subdirectory(bindings/julia)   # CxxWrap - outgoing only (later)
 
 # ---- Benchmarks ----
-add_subdirectory(benchmarks)
+if(NOT SKBUILD)
+	add_subdirectory(benchmarks)
+endif()

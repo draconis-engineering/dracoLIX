@@ -8,6 +8,15 @@
 using namespace dracolix;
 using namespace dracolix::linalg;
 
+// __VERSION__ is a GCC/Clang macro; MSVC needs a fallback.
+#define STR2_(x) #x
+#define STR_(x) STR2_(x)
+#if defined(_MSC_VER)
+#define BENCH_COMPILER "MSVC " STR_(_MSC_VER)
+#else
+#define BENCH_COMPILER __VERSION__
+#endif
+
 // helper: fill with deterministic pseudo-random
 template <typename T>
 void fill_rand(Array<T>& a, uint64_t seed = 0x9e3779b97f4a7c15ULL) {
@@ -24,7 +33,7 @@ int main(int argc, char** argv) {
     if (argc > 2) iters_gemm = std::stoul(argv[2]);
 
     std::cout << "DracoLIX bench_core — core vs baseline (C++ only)\n";
-    std::cout << "build: " << dracolix::version << " | compiler: " << __VERSION__ << "\n\n";
+    std::cout << "build: " << dracolix::version << " | compiler: " << BENCH_COMPILER << "\n\n";
 
     bench::print_header();
 
