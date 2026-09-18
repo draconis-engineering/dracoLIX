@@ -8,9 +8,11 @@
 
 #ifndef __VERSION__
 #ifdef _MSC_VER
-#define __VERSION__ "MSVC " std::to_string(_MSC_VER)
+#define STRINGIFY(x) #x
+#define TOSTRING(x) STRINGIFY(x)
+#define __VERSION__ "MSVC " TOSTRING(_MSC_VER)
 #else
-#define __VERSION__ "Unknown Compiler"
+#define __VERSION__ "Unknown"
 #endif
 #endif
 
