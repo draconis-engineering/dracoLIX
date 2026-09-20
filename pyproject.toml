@@ -8,8 +8,8 @@ version = "0.2.0"
 description = "DracoLIX - native C++ scientific computing core (Python binding outgoing-only)"
 readme = "docs/README.md"
 requires-python = ">=3.10"
-dependencies = []  # zero numpy dependency: numpy is dev-only (benchmarks/tests)
-license = {text = "GPL-3.0-only"}
+dependencies = []
+license = {text = "GPL-3.0-or-later"}
 authors = [{name = "Draconis Engineering"}]
 keywords = ["scientific-computing", "linear-algebra", "hpc", "numerical", "array"]
 classifiers = [

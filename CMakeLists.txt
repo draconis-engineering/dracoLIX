@@ -40,7 +40,7 @@ target_include_directories(dracolix_core PUBLIC
 # x86 SIMD + warnings only for GCC and Clang (NOT AppleClang/MSVC, where
 # -mavx2/-mfma/-march=native are undefined or unsupported on arm64). gated to
 # C++ so a mixed Fortran build does not receive C++-only flags.
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+if(CMAKE_CXX_COMPILER_ID STREQUAL"GNU"OR CMAKE_CXX_COMPILER_ID STREQUAL"Clang")
 	target_compile_options(dracolix_core PRIVATE
 		$<$<COMPILE_LANGUAGE:CXX>:-O3>
 		$<$<COMPILE_LANGUAGE:CXX>:-march=native>
