@@ -3,8 +3,10 @@
 #include "array_view.hpp"
 #include "dtype.hpp"
 #include "layout.hpp"
+#include "thread_pool.hpp"
 #include <algorithm>
 #include <cstring>
+#include <future>
 #include <limits>
 #include <memory>
 #include <numeric>
@@ -263,47 +265,67 @@ template <typename T> class Array {
 		return out;
 	}
 
-	// ---- Reductions (global) ----
+	// ---- Reductions (global) — parallel if large (Phase 3) ----
 	T sum() const {
-		if (size_ == 0)
-			throw std::logic_error("sum of empty array");
-		T acc = T{};
-		for (auto v : data_)
-			acc += v;
-		return acc;
+		if (size_ == 0) throw std::logic_error("sum of empty array");
+		if (size_ < 100000) { T acc=T{}; for(auto v:data_) acc+=v; return acc; }
+		// parallel sum: split into chunks
+		size_t nthreads = ThreadPool::global().size();
+		size_t chunk = (size_ + nthreads -1)/ nthreads;
+		std::vector<T> partials(nthreads, T{});
+		std::vector<std::future<void>> futs;
+		for(size_t t=0;t<nthreads;++t){
+			size_t s=t*chunk, e=std::min(size_, s+chunk);
+			if(s>=e) break;
+			futs.push_back(ThreadPool::global().enqueue([&, t,s,e]{
+				T acc=T{}; for(size_t i=s;i<e;++i) acc+=static_cast<T>(data_[i]); partials[t]=acc;
+			}));
+		}
+		for(auto& f:futs) f.get();
+		T acc=T{}; for(auto v:partials) acc+=v; return acc;
 	}
 	T min() const {
-		if (size_ == 0)
-			throw std::logic_error("min of empty array");
-		T m = data_[0];
-		for (size_t i = 1; i < size_; ++i)
-			if (data_[i] < m)
-				m = data_[i];
-		return m;
+		if (size_ == 0) throw std::logic_error("min of empty array");
+		if (size_ < 100000) { T m=data_[0]; for(size_t i=1;i<size_;++i) if(data_[i]<m) m=data_[i]; return m; }
+		size_t nthreads = ThreadPool::global().size();
+		size_t chunk = (size_ + nthreads -1)/ nthreads;
+		std::vector<T> partials(nthreads);
+		std::vector<std::future<void>> futs;
+		for(size_t t=0;t<nthreads;++t){
+			size_t s=t*chunk, e=std::min(size_, s+chunk);
+			if(s>=e) break;
+			if(t==0) s=0; // ensure first chunk covers data_[0]
+			futs.push_back(ThreadPool::global().enqueue([&, t,s,e]{
+				T m=static_cast<T>(data_[s]); for(size_t i=s+1;i<e;++i) if(static_cast<T>(data_[i])<m) m=static_cast<T>(data_[i]); partials[t]=m;
+			}));
+		}
+		for(auto& f:futs) f.get();
+		T m=partials[0]; for(size_t t=1;t<partials.size();++t) if(partials[t]<m) m=partials[t]; return m;
 	}
 	T max() const {
-		if (size_ == 0)
-			throw std::logic_error("max of empty array");
-		T m = data_[0];
-		for (size_t i = 1; i < size_; ++i)
-			if (data_[i] > m)
-				m = data_[i];
-		return m;
+		if (size_ == 0) throw std::logic_error("max of empty array");
+		if (size_ < 100000) { T m=data_[0]; for(size_t i=1;i<size_;++i) if(data_[i] > m) m=data_[i]; return m; }
+		size_t nthreads = ThreadPool::global().size();
+		size_t chunk = (size_ + nthreads -1)/ nthreads;
+		std::vector<T> partials(nthreads);
+		std::vector<std::future<void>> futs;
+		for(size_t t=0;t<nthreads;++t){
+			size_t s=t*chunk, e=std::min(size_, s+chunk);
+			if(s>=e) break;
+			futs.push_back(ThreadPool::global().enqueue([&, t,s,e]{
+				T m=static_cast<T>(data_[s]); for(size_t i=s+1;i<e;++i) if(static_cast<T>(data_[i])>m) m=static_cast<T>(data_[i]); partials[t]=m;
+			}));
+		}
+		for(auto& f:futs) f.get();
+		T m=partials[0]; for(size_t t=1;t<partials.size();++t) if(partials[t]>m) m=partials[t]; return m;
 	}
 	double mean() const {
-		if (size_ == 0)
-			throw std::logic_error("mean of empty array");
+		if (size_ == 0) throw std::logic_error("mean of empty array");
 		if constexpr (std::is_same_v<T, bool>) {
-			size_t cnt = 0;
-			for (auto v : data_)
-				if (v)
-					++cnt;
-			return (double)cnt / (double)size_;
+			size_t cnt=0; for(auto v:data_) if(v) ++cnt; return (double)cnt/(double)size_;
 		} else {
-			double acc = 0;
-			for (auto v : data_)
-				acc += (double)v;
-			return acc / (double)size_;
+			// use parallel sum
+			return (double)sum() / (double)size_;
 		}
 	}
 

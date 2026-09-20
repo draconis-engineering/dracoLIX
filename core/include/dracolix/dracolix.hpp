@@ -12,6 +12,7 @@
 #include "sparse.hpp"
 #include "eigen.hpp"
 #include "svd.hpp"
+#include "thread_pool.hpp"
 
 
 namespace dracolix {

@@ -27,6 +27,8 @@ endif()
 add_library(dracolix_core STATIC ${DRACOLIX_CORE_SOURCES})
 # Must be PIC so it can be linked into the nanobind shared module on Linux
 set_target_properties(dracolix_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+find_package(Threads REQUIRED)
+target_link_libraries(dracolix_core PUBLIC Threads::Threads)
 
 # FORCE C++20 directly onto this library and anything that uses it
 target_compile_features(dracolix_core PUBLIC cxx_std_20)

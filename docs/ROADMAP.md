@@ -94,9 +94,9 @@ Her ville jeg begynt å bli litt gal på performance.
 - [ ] Memory profiling
 - [x] Cache-aware algorithms (`ikj` ordering, contiguous checks in `linalg.hpp:35`)
 - [x] SIMD (`gemm_f64/f32_avx2` FMA in `core/src/kernels/gemm.cpp:33`, `-mavx2 -mfma`)
-- [ ] Multithreading
-- [ ] Parallel reductions
-- [ ] Thread pool
+- [x] Multithreading (`core/include/dracolix/thread_pool.hpp:14`, `parallel_for` + `dispatch_gemm_*` gated for huge ops)
+- [x] Parallel reductions (`core/include/dracolix/array.hpp:266` `sum`/`min`/`max` via `ThreadPool::global`)
+- [x] Thread pool (`core/include/dracolix/thread_pool.hpp:14`, global pool `hardware_concurrency`)
 - [x] Kernel dispatch (`core/include/dracolix/kernels/dispatch.hpp:18`, `select_gemm_kernel`, `dispatch_gemm_*`)
 - [x] CPU feature detection (`core/include/dracolix/cpu.hpp:12`, AVX/AVX2/AVX512F/FMA)
 - [x] Alignment (`core/include/dracolix/alloc.hpp:14`, 64B `AlignedAllocator`, `is_aligned`)
