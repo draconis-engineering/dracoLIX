@@ -13,3 +13,7 @@ add_test(NAME test_sparse COMMAND test_sparse)
 add_executable(test_decomp test_decomp.cpp)
 target_link_libraries(test_decomp PRIVATE dracolix_core)
 add_test(NAME test_decomp COMMAND test_decomp)
+
+add_executable(test_eigen_svd test_eigen_svd.cpp)
+target_link_libraries(test_eigen_svd PRIVATE dracolix_core)
+add_test(NAME test_eigen_svd COMMAND test_eigen_svd)

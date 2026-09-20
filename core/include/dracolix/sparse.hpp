@@ -4,6 +4,7 @@
 // Licensed under GPL-3.0-only - see LICENSE
 #include "array.hpp"
 #include <algorithm>
+#include <cmath>
 #include <limits>
 #include <numeric>
 #include <stdexcept>
@@ -548,6 +549,35 @@ template <typename T> Array<T> CscMatrix<T>::matvec(const Array<T> &x) const {
 			y[row_ind_[k]] += values_[k] * xj;
 	}
 	return y;
+}
+
+// ---------------------------------------------------------------------------
+// Sparse linear solvers — Conjugate Gradient for SPD matrices (CSR)
+// ---------------------------------------------------------------------------
+template <typename T>
+Array<T> cg_solve(const CsrMatrix<T>& A, const Array<T>& b, double tol = 1e-8, int max_iter = 1000) {
+    if (A.rows() != A.cols()) throw std::invalid_argument("cg_solve requires square");
+    if (b.ndim() != 1 || b.size() != A.rows()) throw std::invalid_argument("cg_solve: b size mismatch");
+    size_t n = A.rows();
+    Array<T> x({n}); std::fill(x.data(), x.data()+n, T{});
+    Array<T> r = b; // r = b - A x, x=0 => r=b
+    Array<T> p = r.clone();
+    double rsold = 0; for(size_t i=0;i<n;++i) rsold += (double)r[i]*(double)r[i];
+    if (std::sqrt(rsold) < tol) return x;
+    for(int iter=0; iter<max_iter; ++iter){
+        Array<T> Ap = A.matvec(p);
+        double pAp = 0; for(size_t i=0;i<n;++i) pAp += (double)p[i]*(double)Ap[i];
+        if (std::abs(pAp) < 1e-18) break;
+        double alpha = rsold / pAp;
+        for(size_t i=0;i<n;++i) x[i] += static_cast<T>(alpha * (double)p[i]);
+        for(size_t i=0;i<n;++i) r[i] -= static_cast<T>(alpha * (double)Ap[i]);
+        double rsnew = 0; for(size_t i=0;i<n;++i) rsnew += (double)r[i]*(double)r[i];
+        if (std::sqrt(rsnew) < tol) break;
+        double beta = rsnew / rsold;
+        for(size_t i=0;i<n;++i) p[i] = r[i] + static_cast<T>(beta * (double)p[i]);
+        rsold = rsnew;
+    }
+    return x;
 }
 
 } // namespace dracolix

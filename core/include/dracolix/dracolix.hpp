@@ -10,6 +10,8 @@
 #include "layout.hpp"
 #include "linalg.hpp"
 #include "sparse.hpp"
+#include "eigen.hpp"
+#include "svd.hpp"
 
 
 namespace dracolix {

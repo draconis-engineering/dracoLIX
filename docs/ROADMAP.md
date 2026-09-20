@@ -74,14 +74,14 @@ Mål: Gjøre DracoLIX genuint nyttig for matematikk.
   - [x] Determinant (`decomp::determinant`)
   - [x] Rank (`decomp::rank`)
   - [x] Linear system solving (`decomp::solve`, `solve_lu`, multi-RHS)
-  - [ ] Eigenvalues / eigenvectors
-  - [ ] SVD
-  - [ ] Sparse
-    - [ ] Sparse matrix representation
-    - [ ] CSR
-    - [ ] CSC
-    - [ ] Sparse matrix multiplication
-    - [ ] Sparse linear solvers
+  - [x] Eigenvalues / eigenvectors (`core/include/dracolix/eigen.hpp:11` Jacobi, symmetric `eig_sym`)
+  - [x] SVD (`core/include/dracolix/svd.hpp:11` via `A^T A` eigen, tall/wide)
+  - [x] Sparse
+    - [x] Sparse matrix representation (`core/include/dracolix/sparse.hpp:30` `CsrMatrix`/`CscMatrix`)
+    - [x] CSR
+    - [x] CSC
+    - [x] Sparse matrix multiplication (`CsrMatrix::matmul`)
+    - [x] Sparse linear solvers (`cg_solve` CG for SPD CSR)
 
 Exit condition: DracoLIX kan håndtere reelle engineering/scientific-computing workloads.
 
