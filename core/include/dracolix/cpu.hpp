@@ -23,7 +23,8 @@ struct Features {
 
 // Fill regs[4] with eax, ebx, ecx, edx for the given CPUID leaf/subleaf.
 // GCC/Clang: cpuid.h; MSVC: intrin.h (__cpuidex).
-inline void cpuid(unsigned int regs[4], unsigned int leaf, unsigned int subleaf) {
+inline void cpuid(unsigned int regs[4], unsigned int leaf,
+				  unsigned int subleaf) {
 #if defined(_MSC_VER)
 	__cpuidex(reinterpret_cast<int *>(regs), leaf, subleaf);
 #elif defined(__x86_64__) || defined(__i386__)
@@ -38,7 +39,8 @@ inline void cpuid(unsigned int regs[4], unsigned int leaf, unsigned int subleaf)
 
 inline Features detect() {
 	Features f;
-#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
+#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) ||             \
+	defined(_M_IX86)
 	unsigned int regs[4];
 	cpuid(regs, 1, 0);
 	f.sse2 = regs[3] & (1u << 26);

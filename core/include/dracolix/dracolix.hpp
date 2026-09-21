@@ -7,13 +7,12 @@
 #include "cpu.hpp"
 #include "decomp.hpp"
 #include "dtype.hpp"
+#include "eigen.hpp"
 #include "layout.hpp"
 #include "linalg.hpp"
 #include "sparse.hpp"
-#include "eigen.hpp"
 #include "svd.hpp"
 #include "thread_pool.hpp"
-
 
 namespace dracolix {
 constexpr const char *version = "0.1.0-core";

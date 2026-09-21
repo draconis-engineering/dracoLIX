@@ -84,12 +84,13 @@ static void gemm_f32_avx2(const float *A, const float *B, float *C, size_t m,
 
 void dispatch_gemm_f64(const double *A, const double *B, double *C, size_t m,
 					   size_t n, size_t p) {
-	// Multithreading: experimental — enabled only for huge problems (tuned in Phase 8 NUMA)
+	// Multithreading: experimental — enabled only for huge problems (tuned in
+	// Phase 8 NUMA)
 	size_t ops = m * n * p;
-	if (false && ops >= 1024*1024*1024 && m >= 256) {
+	if (false && ops >= 1024 * 1024 * 1024 && m >= 256) {
 		// parallel row blocking — each row independent (C rows disjoint)
-		ThreadPool::global().parallel_for(m, [&](size_t i){
-			// per-row ikj with AVX2 if available
+		ThreadPool::global().parallel_for(m, [&](size_t i) {
+		// per-row ikj with AVX2 if available
 #if defined(__AVX2__)
 #if defined(__GNUC__)
 			bool has_avx2 = __builtin_cpu_supports("avx2");
@@ -97,27 +98,29 @@ void dispatch_gemm_f64(const double *A, const double *B, double *C, size_t m,
 			bool has_avx2 = true;
 #endif
 			if (has_avx2) {
-				for (size_t k=0;k<n;++k){
-					__m256d aik = _mm256_broadcast_sd(&A[i*n+k]);
-					size_t j=0;
-					for(; j+4<=p; j+=4){
-						__m256d c = _mm256_loadu_pd(&C[i*p+j]);
-						__m256d b = _mm256_loadu_pd(&B[k*p+j]);
+				for (size_t k = 0; k < n; ++k) {
+					__m256d aik = _mm256_broadcast_sd(&A[i * n + k]);
+					size_t j = 0;
+					for (; j + 4 <= p; j += 4) {
+						__m256d c = _mm256_loadu_pd(&C[i * p + j]);
+						__m256d b = _mm256_loadu_pd(&B[k * p + j]);
 #if defined(__FMA__)
-						c = _mm256_fmadd_pd(aik,b,c);
+						c = _mm256_fmadd_pd(aik, b, c);
 #else
 						c = _mm256_add_pd(c, _mm256_mul_pd(aik,b));
 #endif
-						_mm256_storeu_pd(&C[i*p+j], c);
+						_mm256_storeu_pd(&C[i * p + j], c);
 					}
-					for(; j<p; ++j) C[i*p+j] += A[i*n+k]*B[k*p+j];
+					for (; j < p; ++j)
+						C[i * p + j] += A[i * n + k] * B[k * p + j];
 				}
 				return;
 			}
 #endif
-			for (size_t k=0;k<n;++k){
-				double aik=A[i*n+k];
-				for(size_t j=0;j<p;++j) C[i*p+j]+=aik*B[k*p+j];
+			for (size_t k = 0; k < n; ++k) {
+				double aik = A[i * n + k];
+				for (size_t j = 0; j < p; ++j)
+					C[i * p + j] += aik * B[k * p + j];
 			}
 		});
 		return;
@@ -140,8 +143,8 @@ void dispatch_gemm_f64(const double *A, const double *B, double *C, size_t m,
 void dispatch_gemm_f32(const float *A, const float *B, float *C, size_t m,
 					   size_t n, size_t p) {
 	size_t ops = m * n * p;
-	if (false && ops >= 1024*1024*1024 && m >= 256) {
-		ThreadPool::global().parallel_for(m, [&](size_t i){
+	if (false && ops >= 1024 * 1024 * 1024 && m >= 256) {
+		ThreadPool::global().parallel_for(m, [&](size_t i) {
 #if defined(__AVX2__)
 #if defined(__GNUC__)
 			bool has_avx2 = __builtin_cpu_supports("avx2");
@@ -149,27 +152,29 @@ void dispatch_gemm_f32(const float *A, const float *B, float *C, size_t m,
 			bool has_avx2 = true;
 #endif
 			if (has_avx2) {
-				for (size_t k=0;k<n;++k){
-					__m256 aik = _mm256_broadcast_ss(&A[i*n+k]);
-					size_t j=0;
-					for(; j+8<=p; j+=8){
-						__m256 c = _mm256_loadu_ps(&C[i*p+j]);
-						__m256 b = _mm256_loadu_ps(&B[k*p+j]);
+				for (size_t k = 0; k < n; ++k) {
+					__m256 aik = _mm256_broadcast_ss(&A[i * n + k]);
+					size_t j = 0;
+					for (; j + 8 <= p; j += 8) {
+						__m256 c = _mm256_loadu_ps(&C[i * p + j]);
+						__m256 b = _mm256_loadu_ps(&B[k * p + j]);
 #if defined(__FMA__)
-						c = _mm256_fmadd_ps(aik,b,c);
+						c = _mm256_fmadd_ps(aik, b, c);
 #else
 						c = _mm256_add_ps(c, _mm256_mul_ps(aik,b));
 #endif
-						_mm256_storeu_ps(&C[i*p+j], c);
+						_mm256_storeu_ps(&C[i * p + j], c);
 					}
-					for(; j<p; ++j) C[i*p+j] += A[i*n+k]*B[k*p+j];
+					for (; j < p; ++j)
+						C[i * p + j] += A[i * n + k] * B[k * p + j];
 				}
 				return;
 			}
 #endif
-			for (size_t k=0;k<n;++k){
-				float aik=A[i*n+k];
-				for(size_t j=0;j<p;++j) C[i*p+j]+=aik*B[k*p+j];
+			for (size_t k = 0; k < n; ++k) {
+				float aik = A[i * n + k];
+				for (size_t j = 0; j < p; ++j)
+					C[i * p + j] += aik * B[k * p + j];
 			}
 		});
 		return;
