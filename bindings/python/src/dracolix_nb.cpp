@@ -2099,6 +2099,240 @@ nb::object sparse_rmatmul(nb::object x, nb::object y) {
 }
 
 // ---------------------------------------------------------------------------
+// Linear algebra wrappers (module-level API mirroring the C++ core)
+// ---------------------------------------------------------------------------
+
+nb::object dlx_matvec(nb::object x, nb::object y) {
+  std::optional<DlxArray> A, b;
+  if (!coerce_operand(x, A) || !coerce_operand(y, b))
+    throw nb::type_error("matvec expected arrays");
+  if (A->dtype() != b->dtype())
+    throw nb::type_error("matvec requires matching dtypes");
+  return std::visit(
+      [&](const auto &a) -> nb::object {
+        using T = typename array_scalar<std::decay_t<decltype(a)>>::type;
+        if constexpr (std::is_same_v<T, bool>) {
+          throw nb::type_error("matvec does not support bool arrays");
+        } else {
+          const auto &bv = *b->as<T>();
+          return nb::cast<DlxArray>(
+              DlxArray(dracolix::linalg::matvec(a, bv)));
+        }
+      },
+      A->v);
+}
+
+nb::object dlx_dot(nb::object x, nb::object y) {
+  std::optional<DlxArray> A, b;
+  if (!coerce_operand(x, A) || !coerce_operand(y, b))
+    throw nb::type_error("dot expected arrays");
+  if (A->dtype() != b->dtype())
+    throw nb::type_error("dot requires matching dtypes");
+  return std::visit(
+      [&](const auto &a) -> nb::object {
+        using T = typename array_scalar<std::decay_t<decltype(a)>>::type;
+        if constexpr (std::is_same_v<T, bool>) {
+          throw nb::type_error("dot does not support bool arrays");
+        } else {
+          const auto &bv = *b->as<T>();
+          return nb::cast(dracolix::linalg::dot(a, bv));
+        }
+      },
+      A->v);
+}
+
+double dlx_norm(const DlxArray &a, int p) {
+  return std::visit(
+      [&](const auto &arr) { return dracolix::linalg::norm(arr, p); }, a.v);
+}
+
+nb::object dlx_diagonal(const DlxArray &a) {
+  return std::visit(
+      [](const auto &arr) {
+        return nb::cast<DlxArray>(DlxArray(dracolix::linalg::diagonal(arr)));
+      },
+      a.v);
+}
+
+nb::object dlx_diag(const DlxArray &d) {
+  return std::visit(
+      [](const auto &arr) {
+        return nb::cast<DlxArray>(DlxArray(dracolix::linalg::diag(arr)));
+      },
+      d.v);
+}
+
+nb::object dlx_lu(const DlxArray &a) {
+  return std::visit(
+      [](const auto &arr) -> nb::object {
+        using T = typename array_scalar<std::decay_t<decltype(arr)>>::type;
+        if constexpr (std::is_same_v<T, bool>) {
+          throw nb::type_error("lu does not support bool arrays");
+        } else {
+          auto r = dracolix::decomp::lu(arr);
+          return nb::make_tuple(
+              nb::cast<DlxArray>(DlxArray(std::move(r.L))),
+              nb::cast<DlxArray>(DlxArray(std::move(r.U))),
+              nb::cast<DlxArray>(idx_to_array(r.perm)));
+        }
+      },
+      a.v);
+}
+
+nb::object dlx_solve(nb::object x, nb::object y) {
+  std::optional<DlxArray> A, b;
+  if (!coerce_operand(x, A) || !coerce_operand(y, b))
+    throw nb::type_error("solve expected arrays");
+  if (A->dtype() != b->dtype())
+    throw nb::type_error("solve requires matching dtypes");
+  return std::visit(
+      [&](const auto &a) -> nb::object {
+        using T = typename array_scalar<std::decay_t<decltype(a)>>::type;
+        if constexpr (std::is_same_v<T, bool>) {
+          throw nb::type_error("solve does not support bool arrays");
+        } else {
+          const auto &bv = *b->as<T>();
+          return nb::cast<DlxArray>(
+              DlxArray(dracolix::decomp::solve(a, bv)));
+        }
+      },
+      A->v);
+}
+
+nb::object dlx_inverse(const DlxArray &a) {
+  return std::visit(
+      [](const auto &arr) -> nb::object {
+        using T = typename array_scalar<std::decay_t<decltype(arr)>>::type;
+        if constexpr (std::is_same_v<T, bool>) {
+          throw nb::type_error("inverse does not support bool arrays");
+        } else {
+          return nb::cast<DlxArray>(
+              DlxArray(dracolix::decomp::inverse(arr)));
+        }
+      },
+      a.v);
+}
+
+nb::object dlx_det(const DlxArray &a) {
+  return std::visit(
+      [](const auto &arr) -> nb::object {
+        using T = typename array_scalar<std::decay_t<decltype(arr)>>::type;
+        if constexpr (std::is_same_v<T, bool>) {
+          throw nb::type_error("det does not support bool arrays");
+        } else {
+          return nb::cast(dracolix::decomp::determinant(arr));
+        }
+      },
+      a.v);
+}
+
+int64_t dlx_rank(const DlxArray &a, double tol) {
+  return std::visit(
+      [&](const auto &arr) -> int64_t {
+        using T = typename array_scalar<std::decay_t<decltype(arr)>>::type;
+        if constexpr (std::is_same_v<T, bool>) {
+          throw nb::type_error("rank does not support bool arrays");
+        } else {
+          return (int64_t)dracolix::decomp::rank(arr, tol);
+        }
+      },
+      a.v);
+}
+
+nb::object dlx_qr(const DlxArray &a) {
+  return std::visit(
+      [](const auto &arr) -> nb::object {
+        using T = typename array_scalar<std::decay_t<decltype(arr)>>::type;
+        if constexpr (std::is_same_v<T, bool>) {
+          throw nb::type_error("qr does not support bool arrays");
+        } else {
+          auto r = dracolix::decomp::qr(arr);
+          return nb::make_tuple(
+              nb::cast<DlxArray>(DlxArray(std::move(r.Q))),
+              nb::cast<DlxArray>(DlxArray(std::move(r.R))));
+        }
+      },
+      a.v);
+}
+
+nb::object dlx_cholesky(const DlxArray &a) {
+  return std::visit(
+      [](const auto &arr) -> nb::object {
+        using T = typename array_scalar<std::decay_t<decltype(arr)>>::type;
+        if constexpr (std::is_same_v<T, bool>) {
+          throw nb::type_error("cholesky does not support bool arrays");
+        } else {
+          return nb::cast<DlxArray>(
+              DlxArray(dracolix::decomp::cholesky(arr)));
+        }
+      },
+      a.v);
+}
+
+nb::object dlx_eig(const DlxArray &a) {
+  dracolix::DType dt = a.dtype();
+  if (dt == dracolix::DType::Bool || dt == dracolix::DType::I32 ||
+      dt == dracolix::DType::I64)
+    throw nb::type_error("eig requires a float array (f32 or f64)");
+  // The kernel is double-only; promote f32 to f64.
+  DlxArray work(a.v);
+  if (dt == dracolix::DType::F32)
+    work = cast_dtype(a, dracolix::DType::F64);
+  const auto *ad = work.as<double>();
+  auto r = dracolix::eigen::eig_sym(*ad);
+  return nb::make_tuple(
+      nb::cast<DlxArray>(DlxArray(std::move(r.values))),
+      nb::cast<DlxArray>(DlxArray(std::move(r.vectors))));
+}
+
+nb::object dlx_svd(const DlxArray &a) {
+  dracolix::DType dt = a.dtype();
+  if (dt == dracolix::DType::Bool || dt == dracolix::DType::I32 ||
+      dt == dracolix::DType::I64)
+    throw nb::type_error("svd requires a float array (f32 or f64)");
+  DlxArray work(a.v);
+  if (dt == dracolix::DType::F32)
+    work = cast_dtype(a, dracolix::DType::F64);
+  const auto *ad = work.as<double>();
+  auto r = dracolix::svd::svd(*ad);
+  return nb::make_tuple(
+      nb::cast<DlxArray>(DlxArray(std::move(r.U))),
+      nb::cast<DlxArray>(DlxArray(std::move(r.S))),
+      nb::cast<DlxArray>(DlxArray(std::move(r.Vt))));
+}
+
+nb::object csr_cg_solve(const DlxCsr &m, nb::object bobj) {
+  DlxArray b = dlx_array(bobj, nb::none());
+  if (b.dtype() == dracolix::DType::Bool)
+    throw nb::type_error("cg_solve does not support bool arrays");
+  return std::visit(
+      [&](const auto &mm) -> nb::object {
+        using T = typename matrix_scalar<std::decay_t<decltype(mm)>>::type;
+        const auto *bd = b.as<T>();
+        if (!bd)
+          throw nb::type_error("cg_solve requires matching dtypes");
+        return nb::cast<DlxArray>(DlxArray(dracolix::cg_solve(mm, *bd)));
+      },
+      m.v);
+}
+
+nb::object csc_cg_solve(const DlxCsc &m, nb::object bobj) {
+  DlxArray b = dlx_array(bobj, nb::none());
+  if (b.dtype() == dracolix::DType::Bool)
+    throw nb::type_error("cg_solve does not support bool arrays");
+  return std::visit(
+      [&](const auto &mm) -> nb::object {
+        using T = typename matrix_scalar<std::decay_t<decltype(mm)>>::type;
+        const auto *bd = b.as<T>();
+        if (!bd)
+          throw nb::type_error("cg_solve requires matching dtypes");
+        dracolix::CsrMatrix<T> csr = mm.to_csr();
+        return nb::cast<DlxArray>(DlxArray(dracolix::cg_solve(csr, *bd)));
+      },
+      m.v);
+}
+
+// ---------------------------------------------------------------------------
 // module registration
 // ---------------------------------------------------------------------------
 } // namespace
@@ -2287,6 +2521,9 @@ NB_MODULE(_dracolix_nb, m) {
       .def("at", [](const DlxCsr &m, int64_t i, int64_t j) {
           return sparse_at_csr(m, i, j);
       })
+      .def("solve", [](const DlxCsr &m, nb::object b) {
+          return csr_cg_solve(m, b);
+      }, nb::arg("b"))
       .def("__matmul__", [](const DlxCsr &a, nb::object other) {
           return csr_matmul(a, other);
       })
@@ -2351,6 +2588,9 @@ NB_MODULE(_dracolix_nb, m) {
       .def("at", [](const DlxCsc &m, int64_t i, int64_t j) {
           return sparse_at_csc(m, i, j);
       })
+      .def("solve", [](const DlxCsc &m, nb::object b) {
+          return csc_cg_solve(m, b);
+      }, nb::arg("b"))
       .def("__matmul__", [](const DlxCsc &a, nb::object other) {
           return csc_matmul(a, other);
       })
@@ -2389,6 +2629,38 @@ NB_MODULE(_dracolix_nb, m) {
         nb::arg("dtype") = nb::none());
   m.def("arange", &dlx_arange, nb::arg("start"), nb::arg("stop") = nb::none(),
         nb::arg("step") = nb::none());
+
+  // ---- linear algebra ----------------------------------------------------
+  m.def(
+      "matmul",
+      [](nb::object A, nb::object B) -> nb::object {
+        nb::object r = dlx_matmul(A, B);
+        if (r.ptr() == Py_NotImplemented)
+          throw nb::type_error("matmul expected arrays");
+        return r;
+      },
+      nb::arg("A"), nb::arg("B"));
+  m.def("matvec", &dlx_matvec, nb::arg("A"), nb::arg("x"));
+  m.def("dot", &dlx_dot, nb::arg("a"), nb::arg("b"));
+  m.def("norm", &dlx_norm, nb::arg("a"), nb::arg("p") = 2);
+  m.def("diagonal", &dlx_diagonal, nb::arg("A"));
+  m.def("diag", &dlx_diag, nb::arg("d"));
+
+  // ---- decompositions ----------------------------------------------------
+  m.def("lu", &dlx_lu, nb::arg("A"));
+  m.def("solve", &dlx_solve, nb::arg("A"), nb::arg("b"));
+  m.def("inv", &dlx_inverse, nb::arg("A"));
+  m.def("inverse", &dlx_inverse, nb::arg("A"));
+  m.def("det", &dlx_det, nb::arg("A"));
+  m.def("determinant", &dlx_det, nb::arg("A"));
+  m.def("rank", &dlx_rank, nb::arg("A"), nb::arg("tol") = 1e-9);
+  m.def("qr", &dlx_qr, nb::arg("A"));
+  m.def("cholesky", &dlx_cholesky, nb::arg("A"));
+  m.def("eig", &dlx_eig, nb::arg("A"));
+  m.def("svd", &dlx_svd, nb::arg("A"));
+
+  // ---- sparse solvers ----------------------------------------------------
+  m.def("cg_solve", &csr_cg_solve, nb::arg("A"), nb::arg("b"));
 
   // wire PEP 3118 export slots after the class exists
   g_dlx_type = reinterpret_cast<PyTypeObject *>(nb::type<DlxArray>().ptr());
