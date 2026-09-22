@@ -6,7 +6,6 @@
 #include <algorithm>
 #include <cmath>
 
-
 namespace dracolix::eigen {
 
 struct SymEigenResult {

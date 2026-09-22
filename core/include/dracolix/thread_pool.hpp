@@ -10,7 +10,6 @@
 #include <thread>
 #include <vector>
 
-
 namespace dracolix {
 
 class ThreadPool {
