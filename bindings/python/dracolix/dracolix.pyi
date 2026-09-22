@@ -164,6 +164,9 @@ class CsrMatrix:
     def __matmul__(
         self, other: CsrMatrix | CscMatrix | Array | Any
     ) -> CsrMatrix | Array: ...
+    def solve(self, b: Array | Sequence[Scalar] | Any) -> Array:
+        """Solve A x = b with the conjugate-gradient for SPD matrices
+        (``A`` must be square symmetric positive-definite)."""
     @staticmethod
     def from_coo(
         rows: int,
@@ -203,6 +206,9 @@ class CscMatrix:
     def __matmul__(
         self, other: CsrMatrix | CscMatrix | Array | Any
     ) -> CsrMatrix | Array: ...
+    def solve(self, b: Array | Sequence[Scalar] | Any) -> Array:
+        """Solve A x = b with the conjugate-gradient for SPD matrices
+        (``A`` must be square symmetric positive-definite)."""
     @staticmethod
     def from_coo(
         rows: int,
@@ -214,3 +220,69 @@ class CscMatrix:
     ) -> CscMatrix:
         """Build from coordinates; duplicate entries are summed, and zero
         entries are dropped when ``drop_zeros`` is True (default)."""
+
+# --------------------------------------------------------------------------
+# Linear algebra
+# --------------------------------------------------------------------------
+def matmul(A: Array | Any, B: Array | Any) -> Array | Scalar:
+    """Matrix product. 2-D and batched N-D; ``A @ B`` with 1-D vectors
+    returns a dot product scalar. Requires matching non-bool dtypes."""
+
+def matvec(A: Array | Any, x: Array | Any) -> Array:
+    """Matrix-vector product: A (..., M,N) @ x (..., N) or (N,) -> (..., M)."""
+
+def dot(a: Array | Any, b: Array | Any) -> Scalar:
+    """Inner product of two 1-D arrays; requires matching non-bool dtypes."""
+
+def norm(a: Array, p: int = 2) -> float:
+    """Vector norm: p=0 (max-abs / inf), p=1, p=2. Requires 1-D input."""
+
+def diagonal(A: Array) -> Array:
+    """Extract the diagonal of a 2-D array."""
+
+def diag(d: Array) -> Array:
+    """Build a square diagonal matrix from a 1-D array."""
+
+def lu(A: Array) -> tuple[Array, Array, Array]:
+    """LU with partial pivoting: returns ``(L, U, piv)`` where ``piv`` is an
+    i64 index array such that row ``i`` of ``P@A`` is row ``piv[i]`` of ``A``
+    (``L @ U == P @ A``)."""
+
+def solve(A: Array, b: Array | Any) -> Array:
+    """Solve ``A x = b`` via LU. ``b`` may be 1-D or 2-D (multiple RHS)."""
+
+def inv(A: Array) -> Array:
+    """Matrix inverse via LU. Raises if ``A`` is singular."""
+
+def inverse(A: Array) -> Array:
+    """Alias of :func:`inv`."""
+
+def det(A: Array) -> float:
+    """Determinant of a square matrix."""
+
+def determinant(A: Array) -> float:
+    """Alias of :func:`det`."""
+
+def rank(A: Array, tol: float = 1e-9) -> int:
+    """Numerical rank: number of pivots with |U[i,i]| > tol."""
+
+def qr(A: Array) -> tuple[Array, Array]:
+    """Reduced QR (Modified Gram-Schmidt): ``A m x n (m>=n) -> (Q m x n, R n x n)``
+    with ``Q`` orthonormal and ``A == Q @ R``."""
+
+def cholesky(A: Array) -> Array:
+    """Lower-triangular Cholesky factor ``L`` with ``A == L @ L.T`` for
+    symmetric positive-definite ``A``."""
+
+def eig(A: Array) -> tuple[Array, Array]:
+    """Symmetric eigendecomposition (Jacobi): ``(values, vectors)`` with
+    orthonormal columns. Requires float input (f32 is promoted to f64);
+    returns f64 arrays."""
+
+def svd(A: Array) -> tuple[Array, Array, Array]:
+    """SVD via ``A^T A`` eigens: ``(U, S, Vt)``, ``A == U @ diag(S) @ Vt``.
+    Requires float input (f32 promoted to f64); returns f64 arrays."""
+
+def cg_solve(A: CsrMatrix, b: Array | Sequence[Scalar] | Any) -> Array:
+    """Conjugate-gradient solver for ``A x = b`` on a sparse square SPD CSR
+    matrix. See :meth:`CsrMatrix.solve`."""
