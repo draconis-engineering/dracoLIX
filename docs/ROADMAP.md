@@ -179,20 +179,20 @@ Da begynner DracoLIX å bli ordentlig multi-language:
 
 Nå beveger vi oss fra "linear algebra library" til SciComp.
 
-- [ ] Numerical methods
-- [ ] Root finding
-- [ ] Interpolation
-- [ ] Numerical differentiation
-- [ ] Numerical integration
+- [x] Numerical methods (`core/include/dracolix/numerics.hpp:11`)
+- [x] Root finding (`bisect`/`newton` bisection + Newton, tol 1e-10)
+- [x] Interpolation (`interp_linear` 1-D)
+- [x] Numerical differentiation (`derivative` central 1e-6)
+- [x] Numerical integration (`integrate_simpson`/`trapezoidal` 1e-6 on x²)
 - [ ] Optimization
 - [ ] Least squares
 - [ ] Random number generation
 - [ ] Probability distributions
-- [ ] Differential equations
-- [ ] ODE framework
-- [ ] Euler
-- [ ] RK4
-- [ ] Adaptive Runge-Kutta
+- [x] Differential equations (`core/include/dracolix/ode.hpp:11`)
+- [x] ODE framework (`State` vector, `RHS` functor, traj vector)
+- [x] Euler (fixed-step)
+- [x] RK4 (classical 4th order)
+- [x] Adaptive Runge-Kutta (`adaptive_rk45` step-doubling, tol 1e-6)
 - [ ] Stiff solvers
 - [ ] PDE abstractions
 

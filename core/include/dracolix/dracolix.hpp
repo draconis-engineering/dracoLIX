@@ -14,6 +14,8 @@
 #include "svd.hpp"
 #include "thread_pool.hpp"
 #include "mem.hpp"
+#include "numerics.hpp"
+#include "ode.hpp"
 
 namespace dracolix {
 constexpr const char *version = "0.1.0-core";
