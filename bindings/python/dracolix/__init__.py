@@ -8,7 +8,7 @@ numpy / memoryview through the PEP 3118 buffer protocol only.
 import sys as _sys
 
 from . import _dracolix_nb as _native
-from ._dracolix_nb import (
+from ._dracolix_nb import (  # type: ignore
     Array,
     CscMatrix,
     CsrMatrix,
