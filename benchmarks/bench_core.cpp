@@ -3,6 +3,7 @@
 // Covers: elementwise (with broadcasting), reductions, matmul, batched matmul, sparse matvec
 #include "bench.hpp"
 #include "dracolix/dracolix.hpp"
+#include "dracolix/mem.hpp"
 #include <random>
 
 using namespace dracolix;
@@ -135,6 +136,8 @@ int main(int argc, char** argv) {
         bench::print_result(r2);
     }
 
+    std::cout << "\nRSS end: " << dracolix::mem::format_bytes(dracolix::mem::current_rss_bytes())
+              << "  peak: " << dracolix::mem::format_bytes(dracolix::mem::peak_rss_bytes()) << "\n";
     std::cout << "\nDone. Compare with benchmarks/bench_gemm.py for NumPy/OpenBLAS baseline.\n";
     return 0;
 }
