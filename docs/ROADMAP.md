@@ -125,22 +125,22 @@ Nå kan du lage den Python-opplevelsen ordentlig.
 ```python
 import dracolix as dlx
 
-A = dlx.matrix(..., dtype=dlx.f64)
-B = dlx.matrix(..., dtype=dlx.f64)
+A = dlx.array([[1,2],[3,4]], dtype=dlx.f64)
+B = dlx.array([[5,6],[7,8]], dtype=dlx.f64)
 
 C = A @ B
 ```
 
-- [ ] nanobind bindings
-- [ ] Native Python objects
-- [ ] Python-side DTypes
-- [ ] Array API
-- [ ] Error handling
-- [ ] Documentation
-- [ ] Type hints
-- [ ] Packaging
-- [ ] Wheels
-- [ ] Windows/Linux support
+- [x] nanobind bindings (`bindings/python/src/dracolix_nb.cpp:1` PEP 3118, `DlxArray` variant `f32/f64/i32/i64/bool`)
+- [x] Native Python objects (`Array`, `CsrMatrix`, `CscMatrix` via `nb::class_`)
+- [x] Python-side DTypes (`f32`/`f64`/`i32`/`i64`/`bool_` singleton `DlxDType`)
+- [x] Array API (`array`/`asarray`/`zeros`/`ones`/`arange`/`astype`/`__array__`/`__buffer__`)
+- [x] Error handling (`type_error`/`invalid_argument` → `TypeError`/`ValueError`, bounds checks)
+- [x] Documentation (`docs/README.md` + docstrings in `dracolix_nb.cpp`)
+- [x] Type hints (`bindings/python/dracolix/py.typed` + `__init__.pyi` typed `Array`/`matmul`/`svd`)
+- [x] Packaging (`pyproject.toml:1` `scikit-build-core` `0.2.0` PyPI)
+- [x] Wheels (`.github/workflows/wheels.yml:1` cibuildwheel manylinux_2_28)
+- [x] Windows/Linux support (`ci.yml` `linux`/`windows msys2/UCRT64`/`python` green)
 
 Viktig mål:
 
