@@ -50,7 +50,7 @@ jobs:
   publish:
     name: publish to PyPI
     needs: [build_wheels]
-    if: startsWith(github.ref, 'refs/tags/') && github.event_name == 'release'
+    if: github.event_name == 'release'
     runs-on: ubuntu-latest
     permissions:
       contents: read
