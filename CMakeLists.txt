@@ -78,7 +78,13 @@ option(DRACOLIX_BUILD_PYTHON "Build the nanobind Python bindings" OFF)
 if(SKBUILD OR DRACOLIX_BUILD_PYTHON)
 	add_subdirectory(bindings/python)
 endif()
-# add_subdirectory(bindings/julia)   # CxxWrap - outgoing only (later)
+option(DRACOLIX_BUILD_JULIA "Build Julia C API shared lib" OFF)
+if(DRACOLIX_BUILD_JULIA)
+  add_library(dracolix_c SHARED core/src/c_api.cpp)
+  target_link_libraries(dracolix_c PUBLIC dracolix_core)
+  set_target_properties(dracolix_c PROPERTIES OUTPUT_NAME dracolix VERSION 0.2.0)
+endif()
+# add_subdirectory(bindings/julia)   # ccall-based, no build needed
 
 # ---- Benchmarks ----
 if(NOT SKBUILD)

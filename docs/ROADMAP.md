@@ -156,13 +156,13 @@ DracoLIX
 
 Når core-en er stabil, blir Julia utrolig interessant.
 
-- [ ] Julia bindings
-- [ ] Native DracoLIX arrays
-- [ ] Julia ↔ C++ memory handling
-- [ ] DType mapping
+- [x] Julia bindings (`bindings/julia/src/DracoLIX.jl:1` `ccall` to `core/include/dracolix/c_api.h`)
+- [x] Native DracoLIX arrays (`DracoArray` opaque `Array<double>` via `c_api.cpp`)
+- [x] Julia ↔ C++ memory handling (`finalizer` → `dracolix_array_destroy`, row↔col transpose in `from_matrix`/`to_matrix`)
+- [x] DType mapping (`f64` prototype, pattern for `f32/i32/i64`)
 - [ ] Julia broadcasting
-- [ ] Julia linear algebra interface
-- [ ] Documentation/examples
+- [x] Julia linear algebra interface (`matmul`/`matvec` via `dracolix_matmul_f64`)
+- [x] Documentation/examples (`bindings/julia/README.md:1`, `test/runtests.jl:1`)
 
 Da begynner DracoLIX å bli ordentlig multi-language:
 
