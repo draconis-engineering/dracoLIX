@@ -91,7 +91,7 @@ Her ville jeg begynt å bli litt gal på performance.
 
 - [x] Benchmark suite (`benchmarks/bench_core.cpp` — elementwise, reductions, matmul, batched matmul, sparse, transpose)
 - [x] Baseline implementations (scalar `ikj` GEMM in `core/src/kernels/gemm.cpp`, driven via `bench_core`)
-- [ ] Memory profiling
+- [x] Memory profiling (`core/include/dracolix/mem.hpp:11` `current_rss_bytes`/`peak_rss_bytes` via `/proc/self/status`, `format_bytes`, wired into `bench_core --mem`)
 - [x] Cache-aware algorithms (`ikj` ordering, contiguous checks in `linalg.hpp:35`)
 - [x] SIMD (`gemm_f64/f32_avx2` FMA in `core/src/kernels/gemm.cpp:33`, `-mavx2 -mfma`)
 - [x] Multithreading (`core/include/dracolix/thread_pool.hpp:14`, `parallel_for` + `dispatch_gemm_*` gated for huge ops)
