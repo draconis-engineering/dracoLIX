@@ -4,13 +4,13 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "dracolix"
-version = "0.2.0"
-description = "DracoLIX - native C++ scientific computing core (Python binding outgoing-only)"
+version = "0.2.5-rc1"
+description = "DracoLIX - A native C++ high performance scientific computing platform"
 readme = "docs/README.md"
 requires-python = ">=3.10"
 dependencies = []
 license = {text = "GPL-3.0-or-later"}
-authors = [{name = "Draconis Engineering"}]
+authors = [{name = "Simon Stordal Amundgård"}]
 keywords = ["scientific-computing", "linear-algebra", "hpc", "numerical", "array"]
 classifiers = [
     "Development Status :: 3 - Alpha",
