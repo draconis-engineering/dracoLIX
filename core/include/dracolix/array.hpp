@@ -10,6 +10,7 @@
 #include "layout.hpp"
 #include "thread_pool.hpp"
 #include <algorithm>
+#include <cstddef>
 #include <cstring>
 #include <future>
 #include <limits>
@@ -280,7 +281,11 @@ template <typename T> class Array {
 		return out;
 	}
 
-	// ---- Reductions (global) — parallel if large (Phase 3) ----
+	// =================================================
+	// Reductions (global) — parallel if large ---------
+	// =================================================
+
+	// Sum of all elements in the array
 	T sum() const {
 		if (size_ == 0)
 			throw std::logic_error("sum of empty array");
@@ -314,7 +319,44 @@ template <typename T> class Array {
 		return acc;
 	}
 
-	// returns the minimum value in the array
+	// Returns the average of the entire array
+	T avg() const {
+		if (size_ == 0)
+			throw std::logic_error("avg of empty array");
+		if (size_ < 100000) {
+			return sum() / static_cast<T>(size_);
+		}
+
+		// Parallel computation of average
+		// get thread pool size and chunk size
+		size_t nthreads = ThreadPool::global().size();
+		size_t chunk = (size_ + nthreads - 1) / nthreads;
+		std::vector<T> partials(nthreads);
+		std::vector<std::future<void>> futs;
+
+		// Iterate over chunks in parallel
+		for (size_t t = 0; t < nthreads; ++t) {
+			size_t s = t * chunk, e = std::min(size_, s + chunk);
+			if (s >= e)
+				break;
+			if (t == 0)
+				s = 0; // ensure first chunk covers data_[0]
+			futs.push_back(ThreadPool::global().enqueue([&, t, s, e] {
+				T acc = T{};
+				for (size_t i = s; i < e; ++i)
+					acc += static_cast<T>(data_[i]);
+				partials[t] = acc;
+			}));
+		}
+		for (auto &f : futs)
+			f.get();
+		T acc = T{};
+		for (auto v : partials)
+			acc += v;
+		return acc / static_cast<T>(size_);
+	}
+
+	// Returns the minimum value in the array
 	T min() const {
 		if (size_ == 0)
 			throw std::logic_error("min of empty array");
@@ -404,7 +446,10 @@ template <typename T> class Array {
 		}
 	}
 
-	// ---- Reductions along axis (returns Array with that axis removed) ----
+	// ================================================================
+	// Reductions along axis (returns Array with that axis removed) ---
+	// ================================================================
+
 	// Returns the sum of the array along the given axis
 	Array sum(size_t axis) const {
 		return reduce_axis(
@@ -466,8 +511,8 @@ template <typename T> class Array {
 		return a;
 	}
 
-	// Returns an array filled with random values in the range (min, max) with
-	// optional include_lower/upper bounds
+	// Returns an array filled with random values in the range (min, max)
+	// with optional include_lower/upper bounds
 	static Array ranged_rand(std::vector<size_t> shape, T min, T max,
 							 bool include_lower = false,
 							 bool include_upper = false) {
@@ -477,195 +522,199 @@ template <typename T> class Array {
 		// for (size_t i = 0; i < a.size_; ++i)
 		//	a.data_[i] = dist(rng);
 		// return a;
-	}
-
-  private:
-	// Aligned storage — 64B for SIMD/cache line. bool stored byte-wise.
-	using alloc_t = AlignedAllocator<
-		std::conditional_t<std::is_same_v<T, bool>, uint8_t, T>, kSIMDAlign>;
-	using inner_t = std::conditional_t<std::is_same_v<T, bool>, uint8_t, T>;
-	using storage_t = std::vector<inner_t, alloc_t>;
-	storage_t data_;
-	size_t size_ = 0;
-	size_t ndim_ = 0;
-	std::vector<size_t> shape_;
-	std::vector<size_t> strides_;
-	DType dtype_;
-	Layout layout_ = Layout::RowMajor;
-
-	// Computes the strides for the array based on its shape and layout
-	// Strides are stored in the strides_ member variable
-	void compute_strides() {
-		strides_.resize(ndim_);
-		if (ndim_ == 0)
-			return;
-		if (layout_ == Layout::RowMajor) {
-			strides_[ndim_ - 1] = 1;
-			for (int i = (int)ndim_ - 2; i >= 0; --i)
-				strides_[i] = strides_[i + 1] * shape_[i + 1];
-		} else {
-			strides_[0] = 1;
-			for (size_t i = 1; i < ndim_; ++i)
-				strides_[i] = strides_[i - 1] * shape_[i - 1];
 		}
-	}
 
-	// Computes the broadcast shape of two arrays, throwing an error if they are
-	// incompatible. Returns the broadcast shape as a vector of size_t
-	static std::vector<size_t> broadcast_shape(const std::vector<size_t> &a,
-											   const std::vector<size_t> &b) {
-		size_t na = a.size(), nb = b.size();
-		size_t n = std::max(na, nb);
-		std::vector<size_t> res(n);
-		for (int i = (int)n - 1, ia = (int)na - 1, ib = (int)nb - 1; i >= 0;
-			 --i, --ia, --ib) {
-			size_t da = ia >= 0 ? a[ia] : 1;
-			size_t db = ib >= 0 ? b[ib] : 1;
-			if (da != db && da != 1 && db != 1)
-				throw std::invalid_argument("broadcast: incompatible shapes");
-			res[i] = std::max(da, db);
+	  private:
+		// Aligned storage — 64B for SIMD/cache line. bool stored byte-wise.
+		using alloc_t = AlignedAllocator<
+			std::conditional_t<std::is_same_v<T, bool>, uint8_t, T>,
+			kSIMDAlign>;
+		using inner_t = std::conditional_t<std::is_same_v<T, bool>, uint8_t, T>;
+		using storage_t = std::vector<inner_t, alloc_t>;
+		storage_t data_;
+		size_t size_ = 0;
+		size_t ndim_ = 0;
+		std::vector<size_t> shape_;
+		std::vector<size_t> strides_;
+		DType dtype_;
+		Layout layout_ = Layout::RowMajor;
+
+		// Computes the strides for the array based on its shape and layout
+		// Strides are stored in the strides_ member variable
+		void compute_strides() {
+			strides_.resize(ndim_);
+			if (ndim_ == 0)
+				return;
+			if (layout_ == Layout::RowMajor) {
+				strides_[ndim_ - 1] = 1;
+				for (int i = (int)ndim_ - 2; i >= 0; --i)
+					strides_[i] = strides_[i + 1] * shape_[i + 1];
+			} else {
+				strides_[0] = 1;
+				for (size_t i = 1; i < ndim_; ++i)
+					strides_[i] = strides_[i - 1] * shape_[i - 1];
+			}
 		}
-		return res;
-	}
 
-	// Compute flat offset for operand given result multi-index
-	static size_t broadcast_offset(const std::vector<size_t> &shape,
-								   const std::vector<size_t> &strides,
-								   const std::vector<size_t> &res_idx,
-								   size_t res_ndim) {
-		size_t orig_ndim = shape.size();
-		size_t offset = 0;
-		// align to trailing dimensions
-		for (size_t i = 0; i < res_ndim; ++i) {
-			int orig_d = (int)i - (int)(res_ndim - orig_ndim);
-			if (orig_d < 0)
-				continue; // leading 1
-			if (shape[orig_d] == 1)
-				continue; // broadcasted dim
-			offset += res_idx[i] * strides[orig_d];
-		}
-		return offset;
-	}
-
-	// Element-wise operation between two arrays using a binary function
-	template <typename F> Array elementwise(const Array &o, F fn) const {
-		if (shape_ == o.shape_) {
-			Array res(shape_);
-			for (size_t i = 0; i < size_; ++i)
-				res.data_[i] = fn(data_[i], o.data_[i]);
+		// Computes the broadcast shape of two arrays, throwing an error if they
+		// are incompatible. Returns the broadcast shape as a vector of size_t
+		static std::vector<size_t> broadcast_shape(
+			const std::vector<size_t> &a, const std::vector<size_t> &b) {
+			size_t na = a.size(), nb = b.size();
+			size_t n = std::max(na, nb);
+			std::vector<size_t> res(n);
+			for (int i = (int)n - 1, ia = (int)na - 1, ib = (int)nb - 1; i >= 0;
+				 --i, --ia, --ib) {
+				size_t da = ia >= 0 ? a[ia] : 1;
+				size_t db = ib >= 0 ? b[ib] : 1;
+				if (da != db && da != 1 && db != 1)
+					throw std::invalid_argument(
+						"broadcast: incompatible shapes");
+				res[i] = std::max(da, db);
+			}
 			return res;
 		}
-		auto bshape = broadcast_shape(shape_, o.shape_);
-		Array res(bshape);
-		size_t bndim = bshape.size();
-		// precompute strides already in res
-		std::vector<size_t> idx(bndim);
-		for (size_t flat = 0; flat < res.size_; ++flat) {
-			// unravel flat to idx
-			size_t rem = flat;
-			for (int d = (int)bndim - 1; d >= 0; --d) {
-				idx[d] = rem % bshape[d];
-				rem /= bshape[d];
-			}
-			size_t off_a = broadcast_offset(shape_, strides_, idx, bndim);
-			size_t off_b = broadcast_offset(o.shape_, o.strides_, idx, bndim);
-			res.data_[flat] = fn(data_[off_a], o.data_[off_b]);
-		}
-		return res;
-	}
 
-	// Scalar operation on array using a binary function
-	template <typename F> Array scalar_op(T s, F fn) const {
-		Array res(shape_);
-		for (size_t i = 0; i < size_; ++i)
-			res.data_[i] = fn(data_[i], s);
-		return res;
-	}
-
-	// Reduce operation along a given axis using a binary function and initial
-	// value
-	Array reduce_axis(size_t axis, T (*op)(T, T), T init) const {
-		if (axis >= ndim_)
-			throw std::out_of_range("reduce axis OOB");
-		std::vector<size_t> out_shape;
-		for (size_t d = 0; d < ndim_; ++d)
-			if (d != axis)
-				out_shape.push_back(shape_[d]);
-		if (out_shape.empty())
-			out_shape = {1}; // keep at least 1D for scalar? alternative: return
-							 // 1-element
-		// But for true scalar reduction we want size 1; caller sum(axis) on 1-D
-		// -> scalar array
-		Array out(out_shape);
-		std::fill(out.data_.begin(), out.data_.end(), init);
-		// For non-sum, init handling is special; this path only for sum
-		// Iterate over all elements and map to out index
-		for (size_t flat = 0; flat < size_; ++flat) {
-			// unravel flat to multi-index
-			size_t rem = flat;
-			std::vector<size_t> idx(ndim_);
-			for (int d = (int)ndim_ - 1; d >= 0; --d) {
-				idx[d] = rem % shape_[d];
-				rem /= shape_[d];
+		// Compute flat offset for operand given result multi-index
+		static size_t broadcast_offset(const std::vector<size_t> &shape,
+									   const std::vector<size_t> &strides,
+									   const std::vector<size_t> &res_idx,
+									   size_t res_ndim) {
+			size_t orig_ndim = shape.size();
+			size_t offset = 0;
+			// align to trailing dimensions
+			for (size_t i = 0; i < res_ndim; ++i) {
+				int orig_d = (int)i - (int)(res_ndim - orig_ndim);
+				if (orig_d < 0)
+					continue; // leading 1
+				if (shape[orig_d] == 1)
+					continue; // broadcasted dim
+				offset += res_idx[i] * strides[orig_d];
 			}
-			// compute out flat
-			size_t out_flat = 0;
-			size_t mult = 1;
-			for (int d = (int)ndim_ - 1; d >= 0; --d) {
-				if ((size_t)d == axis)
-					continue;
-				// find position in out_shape
-				size_t out_d = d > (int)axis ? d - 1 : d;
-				// need strides of out
-				// compute via out strides
-				out_flat += idx[d] * out.strides()[out_d];
-			}
-			out.data()[out_flat] = op(out.data()[out_flat], data_[flat]);
+			return offset;
 		}
-		return out;
-	}
 
-	// Reduce operation along a given axis using min/max binary function
-	Array reduce_axis_minmax(size_t axis, bool is_min) const {
-		if (axis >= ndim_)
-			throw std::out_of_range("reduce axis OOB");
-		std::vector<size_t> out_shape;
-		for (size_t d = 0; d < ndim_; ++d)
-			if (d != axis)
-				out_shape.push_back(shape_[d]);
-		if (out_shape.empty())
-			out_shape = {1};
-		Array out(out_shape);
-		// init with first slice
-		bool first = true;
-		for (size_t flat = 0; flat < size_; ++flat) {
-			size_t rem = flat;
-			std::vector<size_t> idx(ndim_);
-			for (int d = (int)ndim_ - 1; d >= 0; --d) {
-				idx[d] = rem % shape_[d];
-				rem /= shape_[d];
+		// Element-wise operation between two arrays using a binary function
+		template <typename F> Array elementwise(const Array &o, F fn) const {
+			if (shape_ == o.shape_) {
+				Array res(shape_);
+				for (size_t i = 0; i < size_; ++i)
+					res.data_[i] = fn(data_[i], o.data_[i]);
+				return res;
 			}
-			size_t out_flat = 0;
-			for (int d = (int)ndim_ - 1, out_d = (int)out.ndim() - 1; d >= 0;
-				 --d) {
-				if ((size_t)d == axis)
-					continue;
-				out_flat += idx[d] * out.strides()[out_d];
-				--out_d;
+			auto bshape = broadcast_shape(shape_, o.shape_);
+			Array res(bshape);
+			size_t bndim = bshape.size();
+			// precompute strides already in res
+			std::vector<size_t> idx(bndim);
+			for (size_t flat = 0; flat < res.size_; ++flat) {
+				// unravel flat to idx
+				size_t rem = flat;
+				for (int d = (int)bndim - 1; d >= 0; --d) {
+					idx[d] = rem % bshape[d];
+					rem /= bshape[d];
+				}
+				size_t off_a = broadcast_offset(shape_, strides_, idx, bndim);
+				size_t off_b =
+					broadcast_offset(o.shape_, o.strides_, idx, bndim);
+				res.data_[flat] = fn(data_[off_a], o.data_[off_b]);
 			}
-			if (idx[axis] == 0)
-				out.data()[out_flat] = static_cast<T>(data_[flat]);
-			else {
-				if (is_min)
-					out.data()[out_flat] = std::min<T>(
-						out.data()[out_flat], static_cast<T>(data_[flat]));
-				else
-					out.data()[out_flat] = std::max<T>(
-						out.data()[out_flat], static_cast<T>(data_[flat]));
-			}
+			return res;
 		}
-		return out;
-	}
-};
+
+		// Scalar operation on array using a binary function
+		template <typename F> Array scalar_op(T s, F fn) const {
+			Array res(shape_);
+			for (size_t i = 0; i < size_; ++i)
+				res.data_[i] = fn(data_[i], s);
+			return res;
+		}
+
+		// Reduce operation along a given axis using a binary function and
+		// initial value
+		Array reduce_axis(size_t axis, T (*op)(T, T), T init) const {
+			if (axis >= ndim_)
+				throw std::out_of_range("reduce axis OOB");
+			std::vector<size_t> out_shape;
+			for (size_t d = 0; d < ndim_; ++d)
+				if (d != axis)
+					out_shape.push_back(shape_[d]);
+			if (out_shape.empty())
+				out_shape = {1}; // keep at least 1D for scalar? alternative:
+								 // return 1-element
+			// But for true scalar reduction we want size 1; caller sum(axis) on
+			// 1-D
+			// -> scalar array
+			Array out(out_shape);
+			std::fill(out.data_.begin(), out.data_.end(), init);
+			// For non-sum, init handling is special; this path only for sum
+			// Iterate over all elements and map to out index
+			for (size_t flat = 0; flat < size_; ++flat) {
+				// unravel flat to multi-index
+				size_t rem = flat;
+				std::vector<size_t> idx(ndim_);
+				for (int d = (int)ndim_ - 1; d >= 0; --d) {
+					idx[d] = rem % shape_[d];
+					rem /= shape_[d];
+				}
+				// compute out flat
+				size_t out_flat = 0;
+				size_t mult = 1;
+				for (int d = (int)ndim_ - 1; d >= 0; --d) {
+					if ((size_t)d == axis)
+						continue;
+					// find position in out_shape
+					size_t out_d = d > (int)axis ? d - 1 : d;
+					// need strides of out
+					// compute via out strides
+					out_flat += idx[d] * out.strides()[out_d];
+				}
+				out.data()[out_flat] = op(out.data()[out_flat], data_[flat]);
+			}
+			return out;
+		}
+
+		// Reduce operation along a given axis using min/max binary function
+		Array reduce_axis_minmax(size_t axis, bool is_min) const {
+			if (axis >= ndim_)
+				throw std::out_of_range("reduce axis OOB");
+			std::vector<size_t> out_shape;
+			for (size_t d = 0; d < ndim_; ++d)
+				if (d != axis)
+					out_shape.push_back(shape_[d]);
+			if (out_shape.empty())
+				out_shape = {1};
+			Array out(out_shape);
+			// init with first slice
+			bool first = true;
+			for (size_t flat = 0; flat < size_; ++flat) {
+				size_t rem = flat;
+				std::vector<size_t> idx(ndim_);
+				for (int d = (int)ndim_ - 1; d >= 0; --d) {
+					idx[d] = rem % shape_[d];
+					rem /= shape_[d];
+				}
+				size_t out_flat = 0;
+				for (int d = (int)ndim_ - 1, out_d = (int)out.ndim() - 1;
+					 d >= 0; --d) {
+					if ((size_t)d == axis)
+						continue;
+					out_flat += idx[d] * out.strides()[out_d];
+					--out_d;
+				}
+				if (idx[axis] == 0)
+					out.data()[out_flat] = static_cast<T>(data_[flat]);
+				else {
+					if (is_min)
+						out.data()[out_flat] = std::min<T>(
+							out.data()[out_flat], static_cast<T>(data_[flat]));
+					else
+						out.data()[out_flat] = std::max<T>(
+							out.data()[out_flat], static_cast<T>(data_[flat]));
+				}
+			}
+			return out;
+		}
+	};
 
 } // namespace dracolix
