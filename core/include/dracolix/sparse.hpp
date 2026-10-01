@@ -1,7 +1,9 @@
 #pragma once
+
 // Sparse matrix support: CSR and CSC compressed storage.
 // Phase 2b - representation, conversion, dense interop and sparse matmul.
-// Licensed under GPL-3.0-only - see LICENSE
+// Licensed under GPL-3.0+
+
 #include "array.hpp"
 #include <algorithm>
 #include <cmath>

@@ -1,4 +1,9 @@
 #pragma once
+
+// Array class for storing and manipulating N-dimensional arrays
+// of type T, with platform-specific aligned memory allocation
+// Licensed under GPL-3.0+
+
 #include "alloc.hpp"
 #include "array_view.hpp"
 #include "dtype.hpp"
@@ -152,9 +157,9 @@ template <typename T> class Array {
 		compute_strides();
 	}
 
-	// =====================
-	// ---- Views ----------
-	// =====================
+	// =============================
+	// Views -----------------------
+	// =============================
 
 	// Return a view of the array
 	ArrayView<T> view() { return ArrayView<T>(data_.data(), shape_, strides_); }

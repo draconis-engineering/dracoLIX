@@ -1,7 +1,7 @@
 #pragma once
 
 // Aligned allocation — Phase 3: Alignment + Optimized allocation
-// Licensed under GPL-3.0-only
+// Licensed under GPL-3.0+
 
 #include <cstddef>
 #include <cstdint>

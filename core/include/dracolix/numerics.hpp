@@ -1,9 +1,9 @@
 #pragma once
 
-// Numerical methods — Phase 6 prototype
+// Numerical methods
 // Root finding, interpolation, differentiation, integration, ODE
 // (Euler/RK4/Adaptive)
-// Licensed under GPL-3.0-only
+// Licensed under GPL-3.0+
 
 #include "array.hpp"
 #include <cmath>

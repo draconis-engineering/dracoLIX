@@ -1,4 +1,8 @@
 #pragma once
+
+// Layout enumeration
+// Licensed under GPL-3.0+
+
 #include <cstdint>
 namespace dracolix {
 enum class Layout : uint8_t {

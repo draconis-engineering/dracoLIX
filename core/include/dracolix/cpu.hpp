@@ -1,6 +1,8 @@
 #pragma once
+
 // CPU feature detection — Phase 3
-// Licensed under GPL-3.0-only
+// Licensed under GPL-3.0+
+
 #include <cstring>
 #include <string>
 #if defined(_MSC_VER)

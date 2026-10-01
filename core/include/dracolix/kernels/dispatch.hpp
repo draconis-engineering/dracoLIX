@@ -1,6 +1,8 @@
 #pragma once
+
 // Kernel dispatch — Phase 3: Alignment + CPU detection + selection
-// Licensed under GPL-3.0-only
+// Licensed under GPL-3.0+
+
 #include "../alloc.hpp"
 #include "../cpu.hpp"
 #include <cstddef>

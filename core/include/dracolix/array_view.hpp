@@ -1,4 +1,9 @@
 #pragma once
+
+// Non-owning view of an N-dimensional array.
+// Strides are in elements (not bytes). Does NOT own memory.
+// Licensed under GPL-3.0+
+
 #include "dtype.hpp"
 #include <algorithm>
 #include <cstdint>
@@ -40,6 +45,7 @@ template <typename T> class ArrayView {
 		return const_cast<ArrayView *>(this)->operator[](flat);
 	}
 
+	// 2-D accessor
 	T &at(size_t i, size_t j) {
 		if (ndim_ != 2) {
 			throw std::logic_error("ArrayView::at(i,j) requires ndim==2");
@@ -78,6 +84,8 @@ template <typename T> class ArrayView {
 	const std::vector<size_t> &shape() const noexcept { return shape_; }
 	const std::vector<size_t> &strides() const noexcept { return strides_; }
 
+	// Returns true if the array is contiguous in memory
+	// (strides match row-major layout)
 	bool is_contiguous() const noexcept {
 		// Check if strides match row-major contiguous
 		if (ndim_ == 0)

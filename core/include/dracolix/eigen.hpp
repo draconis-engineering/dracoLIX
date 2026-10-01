@@ -1,7 +1,9 @@
 #pragma once
+
 // Eigenvalues / eigenvectors — symmetric Jacobi method
 // Phase 2 prototype, real double only. For general matrices use eig_sym.
-// Licensed under GPL-3.0-only
+// Licensed under GPL-3.0+
+
 #include "array.hpp"
 #include <algorithm>
 #include <cmath>

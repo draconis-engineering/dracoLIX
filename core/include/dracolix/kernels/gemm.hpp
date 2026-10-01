@@ -1,4 +1,9 @@
 #pragma once
+
+// Core kernels - pure C++ with no Python/Julia dependency.
+// Fortran fallback is linked separately via iso_c_binding.
+// Licensed under GPL-3.0+
+
 #include <cstddef>
 
 // Core kernels - pure C++ with no Python/Julia dependency.

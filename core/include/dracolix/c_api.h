@@ -1,6 +1,9 @@
 #pragma once
+
 // C API for Julia (and other C callers) — simple opaque handle over
-// Array<double> Phase 5 minimal interop. Licensed under GPL-3.0-only
+// Array<double> Phase 5 minimal interop.
+// Licensed under GPL-3.0+
+
 #ifdef __cplusplus
 extern "C" {
 #endif

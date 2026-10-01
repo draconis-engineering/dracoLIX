@@ -24,15 +24,15 @@ DracoLIX aims to provide that foundation for the **Draconis Engineering ecosyste
 
 The long-term vision is a platform capable of powering:
 
-* Linear algebra
-* Numerical analysis
-* Scientific simulation
-* Optimization
-* Differential equations
-* CFD
-* Engineering computation
-* High-performance data analysis
-* HPC workloads
+- Linear algebra
+- Numerical analysis
+- Scientific simulation
+- Optimization
+- Differential equations
+- CFD
+- Engineering computation
+- High-performance data analysis
+- HPC workloads
 
 The core principle is simple:
 
@@ -69,7 +69,7 @@ DracoLIX is designed as a multi-language system where each language has a specif
                             │
               ┌─────────────┴─────────────┐
               │                           │
-        C++ Kernels                Fortran Kernels (optional)
+        C++ Kernels           Optional Fortran Kernels
               │                           │
               └─────────────┬─────────────┘
                             ▼
@@ -82,17 +82,15 @@ C++ forms the foundation of DracoLIX.
 
 It is responsible for:
 
-* Core data structures
-* Memory management
-* Array implementations
-* DType system
-* Runtime and dispatch
-* Parallel execution
-* SIMD-oriented computation
-* Language bindings
-* Performance-critical kernels
-
-C++ provides the systems-level control required to make DracoLIX independent of external numerical runtimes.
+- Core data structures
+- Memory management
+- Array implementations
+- DType system
+- Runtime and dispatch
+- Parallel execution
+- SIMD-oriented computation
+- Language bindings
+- Performance-critical kernels
 
 ### Fortran
 
@@ -100,13 +98,11 @@ Fortran is an optional HPC backend. Enabled via `-DDRACOLIX_USE_FORTRAN=ON` at b
 
 It is intended for:
 
-* Numerical kernels
-* Scientific algorithms
-* Linear algebra
-* Numerical solvers
-* Future HPC functionality
-
-Where appropriate, Fortran and C++ communicate through well-defined native interfaces (iso_c_binding).
+- Numerical kernels
+- Scientific algorithms
+- Linear algebra
+- Numerical solvers
+- Future HPC functionality
 
 ### Python
 
@@ -140,14 +136,12 @@ Julia is planned as a first-class scientific computing interface.
 
 Julia's strengths in numerical programming make it particularly suitable for:
 
-* Scientific research
-* Mathematical experimentation
-* Numerical methods
-* Differential equations
-* Optimization
-* Simulation
-
-The Julia interface should communicate directly with the DracoLIX core rather than passing through Python.
+- Scientific research
+- Mathematical experimentation
+- Numerical methods
+- Differential equations
+- Optimization
+- Simulation
 
 ---
 
@@ -168,7 +162,7 @@ dlx.c64
 dlx.c128
 ```
 
-would represent native DracoLIX types.
+...would represent native DracoLIX types.
 
 Conceptually:
 
@@ -186,15 +180,15 @@ The DType system is intended to become part of the DracoLIX runtime itself.
 
 This allows the runtime to make decisions based on:
 
-* Element size
-* Alignment
-* Numerical representation
-* SIMD compatibility
-* Kernel availability
-* Memory requirements
-* Future accelerator support
+- Element size
+- Alignment
+- Numerical representation
+- SIMD compatibility
+- Kernel availability
+- Memory requirements
+- Future accelerator support
 
-The goal is to build a **numerical type system designed around DracoLIX's own execution model**, not just copy NumPy.
+The goal is to build a **numerical type system designed around DracoLIX's own execution model**.
 
 ---
 
@@ -224,15 +218,15 @@ Array<T>
 
 This gives DracoLIX control over important performance characteristics such as:
 
-* Contiguous memory
-* Strided views
-* Row-major and column-major layouts
-* Memory alignment
-* Cache efficiency
-* SIMD compatibility
-* Zero-copy views
-* Slicing
-* Parallel access
+- Contiguous memory
+- Strided views
+- Row-major and column-major layouts
+- Memory alignment
+- Cache efficiency
+- SIMD compatibility
+- Zero-copy views
+- Slicing
+- Parallel access
 
 This is a deliberate design choice.
 
@@ -276,12 +270,12 @@ C = A @ B
 
 The runtime can then determine the appropriate implementation based on:
 
-* DType
-* Matrix dimensions
-* Memory layout
-* Hardware capabilities
-* Available kernels
-* Parallel execution options
+- DType
+- Matrix dimensions
+- Memory layout
+- Hardware capabilities
+- Available kernels
+- Parallel execution options
 
 Conceptually:
 
@@ -310,54 +304,54 @@ DracoLIX is intended to grow incrementally.
 
 ### 1. Core
 
-* Native DTypes
-* Arrays
-* Vectors
-* Matrices
-* Tensors
-* Memory management
-* Views and slicing
-* Basic arithmetic
+- Native DTypes
+- Arrays
+- Vectors
+- Matrices
+- Tensors
+- Memory management
+- Views and slicing
+- Basic arithmetic
 
 ### 2. Linear Algebra
 
-* Matrix multiplication
-* Vector operations
-* Decompositions
-* Linear system solvers
-* Eigenvalue problems
-* Sparse matrices
-* Advanced matrix algorithms
+- Matrix multiplication
+- Vector operations
+- Decompositions
+- Linear system solvers
+- Eigenvalue problems
+- Sparse matrices
+- Advanced matrix algorithms
 
 ### 3. Numerical Computing
 
-* Numerical integration
-* Interpolation
-* Optimization
-* Root finding
-* ODE solvers
-* PDE solvers
-* Numerical differentiation
+- Numerical integration
+- Interpolation
+- Optimization
+- Root finding
+- ODE solvers
+- PDE solvers
+- Numerical differentiation
 
 ### 4. Scientific Computing
 
-* Scientific simulation
-* Computational physics
-* Engineering workloads
-* CFD
-* Large-scale numerical analysis
+- Scientific simulation
+- Computational physics
+- Engineering workloads
+- CFD
+- Large-scale numerical analysis
 
 ### 5. HPC
 
 Future research areas may include:
 
-* Advanced SIMD
-* Multithreading
-* GPU acceleration
-* Distributed computation
-* MPI
-* Domain decomposition
-* Large-scale simulation
+- Advanced SIMD
+- Multithreading
+- GPU acceleration
+- Distributed computation
+- MPI
+- Domain decomposition
+- Large-scale simulation
 
 These features are **long-term goals**, not current capabilities.
 
@@ -387,13 +381,13 @@ Olympus Analytics Engine will be one of the first major consumers of DracoLIX.
 
 As Olympus processes increasingly large quantities of training and physiological data, DracoLIX can provide the numerical foundation for:
 
-* Time-series analysis
-* Statistical calculations
-* Signal processing
-* Rolling computations
-* Training-load calculations
-* Numerical models
-* Large-scale historical analysis
+- Time-series analysis
+- Statistical calculations
+- Signal processing
+- Rolling computations
+- Training-load calculations
+- Numerical models
+- Large-scale historical analysis
 
 Olympus understands the **domain**.
 
@@ -403,39 +397,35 @@ DracoLIX handles the **mathematics**.
 
 DuraPy can use DracoLIX as its numerical backend for high-performance scientific and endurance-sports computation.
 
-### ICARUS
-
-ICARUS can use DracoLIX when numerical computation becomes part of an agent workflow, allowing the agent to delegate computationally intensive operations to a native numerical engine.
-
 ---
 
 # Design Principles
 
 ### From the ground-up
 
-DracoLIX should own its core numerical representation rather than simply wrapping another numerical library.
+DracoLIX should own its core numerical representation. We do not just simply wrap another numerical library.
 
 ### Speed
 
-Performance matters.
+**Performance matters.**
 
 Memory layout, cache behavior, SIMD, parallelism and algorithmic complexity should be considered fundamental parts of the architecture.
 
 ### Reliability
 
-Numerical software must be predictable.
+**Numerical software must be predictable.**
 
 Correctness, testing, numerical stability and deterministic behavior are core concerns.
 
 ### Multi-language
 
-Different languages are good at different things.
+**Different languages are good at different things.**
 
 DracoLIX embraces Python, Julia, Rust and Fortran instead of forcing everything into one language.
 
 ### Open Source
 
-DracoLIX is fully open source.
+**DracoLIX is fully open source.**
 
 The goal is to build a transparent numerical computing stack that can be studied, modified and extended by others.
 
@@ -493,7 +483,6 @@ The architecture and roadmap described above represent the **direction of the pr
 - [ ] GPU acceleration
 - [ ] Distributed HPC
 
-
 The roadmap is intentionally ambitious.
 
 Not every feature is guaranteed to be implemented, and priorities may change as the project evolves.
@@ -514,6 +503,8 @@ Instead of building another abstraction layer around existing numerical software
 
 # License
 
-DracoLIX is open source and intended to remain freely available to the community.
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+
+DracoLIX is licensed under the GPLv3+ license. It is open source and intended to remain freely available to the community.
 
 See the repository license for details.

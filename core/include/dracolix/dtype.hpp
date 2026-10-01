@@ -1,4 +1,8 @@
 #pragma once
+
+// Data type enumeration and size utilities
+// Licensed under GPL-3.0+
+
 #include <cstddef>
 #include <cstdint>
 #include <stdexcept>

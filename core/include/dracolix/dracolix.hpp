@@ -1,6 +1,9 @@
 #pragma once
-// Umbrella header for the core. Outgoing-only: no language bindings included
-// here. Licensed under GPL-3.0-only
+
+// Umbrella header for the core.
+// Outgoing-only: no language bindings included here.
+// Licensed under GPL-3.0+
+
 #include "alloc.hpp"
 #include "array.hpp"
 #include "array_view.hpp"
@@ -17,7 +20,6 @@
 #include "svd.hpp"
 #include "thread_pool.hpp"
 
-
 namespace dracolix {
-constexpr const char *version = "0.1.0-core";
+constexpr const char *version = "0.2.5-rc1";
 }

@@ -1,6 +1,9 @@
 #pragma once
-// ODE solvers — Phase 6: Euler, RK4, Adaptive RK45 (Dormand-Prince simplified)
-// Licensed under GPL-3.0-only
+
+// ODE solvers
+// Euler, RK4, Adaptive RK45 (Dormand-Prince simplified)
+// Licensed under GPL-3.0+
+
 #include "array.hpp"
 #include <cmath>
 #include <functional>

@@ -1,6 +1,8 @@
 #pragma once
-// Memory profiling — Phase 3 final
-// Licensed under GPL-3.0-only
+
+// Memory profiling
+// Licensed under GPL-3.0+
+
 #include <cstddef>
 #include <fstream>
 #include <sstream>

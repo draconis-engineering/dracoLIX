@@ -2,7 +2,7 @@
 
 // SVD prototype via symmetric eigen of A^T A (for m>=n) or A A^T
 // Phase 2, real double only.
-// Licensed under GPL-3.0-only
+// Licensed under GPL-3.0+
 
 #include "array.hpp"
 #include "eigen.hpp"

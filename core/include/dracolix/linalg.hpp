@@ -1,6 +1,8 @@
 #pragma once
-// Phase 2a - Linear algebra prototype: atleast-3D batched support
-// Licensed under GPL-3.0-only - see LICENSE
+
+// Linear algebra prototype: atleast-3D batched support
+// Licensed under GPL-3.0+
+
 #include "array.hpp"
 #include "kernels/dispatch.hpp"
 #include "kernels/gemm.hpp"

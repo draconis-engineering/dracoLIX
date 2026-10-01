@@ -1,6 +1,8 @@
 #pragma once
+
 // Factorizations: LU (with partial pivoting), solve, det, inv, rank
-// Licensed under GPL-3.0-only
+// Licensed under GPL-3.0+
+
 #include "array.hpp"
 #include "linalg.hpp"
 #include <cmath>
