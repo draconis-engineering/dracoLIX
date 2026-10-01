@@ -1,12 +1,15 @@
 #pragma once
+
 // Aligned allocation — Phase 3: Alignment + Optimized allocation
 // Licensed under GPL-3.0-only
+
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <memory>
 #include <new>
 
+// Check for aligned allocation support
 #if defined(_WIN32) || defined(_WIN64)
 #include <malloc.h>
 #endif
@@ -14,10 +17,12 @@
 namespace dracolix {
 
 constexpr size_t kCacheLine = 64;
-constexpr size_t kSimdAlign = 64; // covers AVX-512
+constexpr size_t kSIMDAlign = 64; // covers AVX-512
 
 // Aligned allocator for std::vector
-template <typename T, size_t Align = kSimdAlign> struct AlignedAllocator {
+// Provides aligned memory allocation for std::vector,
+// using platform-specific aligned allocation functions
+template <typename T, size_t Align = kSIMDAlign> struct AlignedAllocator {
 	using value_type = T;
 	using size_type = size_t;
 	using difference_type = ptrdiff_t;
@@ -61,7 +66,9 @@ template <typename T, size_t Align = kSimdAlign> struct AlignedAllocator {
 	bool operator!=(const AlignedAllocator &) const noexcept { return false; }
 };
 
-inline bool is_aligned(const void *p, size_t align = kSimdAlign) {
+// Check if a pointer is aligned
+// returns true if the pointer is aligned to the given alignment
+inline bool is_aligned(const void *p, size_t align = kSIMDAlign) {
 	return (reinterpret_cast<uintptr_t>(p) % align) == 0;
 }
 

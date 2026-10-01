@@ -1,6 +1,8 @@
 #pragma once
+
 // Thread pool — Phase 3: Multithreading / Thread pool
 // Licensed under GPL-3.0-only
+
 #include <atomic>
 #include <condition_variable>
 #include <functional>

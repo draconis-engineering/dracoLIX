@@ -16,8 +16,11 @@
 
 namespace dracolix {
 
+// Array class for storing and manipulating N-dimensional arrays
+// of type T, with platform-specific aligned memory allocation
 template <typename T> class Array {
   public:
+	// Default constructor, creates an uninitialized array of size 0
 	explicit Array(size_t size, Layout layout = Layout::RowMajor)
 		: size_(size), ndim_(1), shape_{size}, dtype_(DTypeOf<T>::value),
 		  layout_(layout) {
@@ -27,6 +30,7 @@ template <typename T> class Array {
 		compute_strides();
 	}
 
+	// Default constructor, creates an uninitialized array of size 0
 	explicit Array(std::vector<size_t> shape, Layout layout = Layout::RowMajor)
 		: shape_(std::move(shape)), dtype_(DTypeOf<T>::value), layout_(layout) {
 		if (dtype_ == DType::Void)
@@ -131,6 +135,7 @@ template <typename T> class Array {
 	DType dtype() const noexcept { return dtype_; }
 	Layout layout() const noexcept { return layout_; }
 
+	// Reshape array to new shape, preserving as much data as possible
 	void reshape(std::vector<size_t> new_shape) {
 		size_t new_size = 1;
 		for (auto s : new_shape)
@@ -147,7 +152,11 @@ template <typename T> class Array {
 		compute_strides();
 	}
 
-	// ---- Views ----
+	// =====================
+	// ---- Views ----------
+	// =====================
+
+	// Return a view of the array
 	ArrayView<T> view() { return ArrayView<T>(data_.data(), shape_, strides_); }
 	ArrayView<const T> view() const {
 		return ArrayView<const T>(data_.data(), shape_, strides_);
@@ -235,6 +244,7 @@ template <typename T> class Array {
 		return res;
 	}
 
+	// Permute array along given axes, returning a new array
 	Array permuted(const std::vector<size_t> &axes) const {
 		auto v = const_cast<Array *>(this)->permute(axes);
 		// materialize
@@ -298,6 +308,8 @@ template <typename T> class Array {
 			acc += v;
 		return acc;
 	}
+
+	// returns the minimum value in the array
 	T min() const {
 		if (size_ == 0)
 			throw std::logic_error("min of empty array");
@@ -334,6 +346,8 @@ template <typename T> class Array {
 				m = partials[t];
 		return m;
 	}
+
+	// Returns the maximum value in the array
 	T max() const {
 		if (size_ == 0)
 			throw std::logic_error("max of empty array");
@@ -368,6 +382,8 @@ template <typename T> class Array {
 				m = partials[t];
 		return m;
 	}
+
+	// Returns the mean value of the array
 	double mean() const {
 		if (size_ == 0)
 			throw std::logic_error("mean of empty array");
@@ -384,21 +400,27 @@ template <typename T> class Array {
 	}
 
 	// ---- Reductions along axis (returns Array with that axis removed) ----
+	// Returns the sum of the array along the given axis
 	Array sum(size_t axis) const {
 		return reduce_axis(
 			axis, [](T a, T b) { return static_cast<T>(a + b); }, T{});
 	}
+
+	// Returns the minimum value along the given axis
 	Array min_axis(size_t axis) const {
 		if (size_ == 0)
 			throw std::logic_error("min_axis empty");
 		return reduce_axis_minmax(axis, true);
 	}
+
+	// Returns the maximum value along the given axis
 	Array max_axis(size_t axis) const {
 		if (size_ == 0)
 			throw std::logic_error("max_axis empty");
 		return reduce_axis_minmax(axis, false);
 	}
-	// mean along axis returns double array
+
+	// Returns the mean value along the given axis
 	Array<double> mean_axis(size_t axis) const {
 		auto s = sum(axis);
 		auto out = s.template astype<double>();
@@ -409,20 +431,53 @@ template <typename T> class Array {
 	}
 
 	// ---- Initializers ----
+
+	// Returns an array filled with zeros
 	static Array zeros(std::vector<size_t> shape) {
 		Array a(std::move(shape));
 		return a;
 	}
+
+	// Returns an array filled with ones
 	static Array ones(std::vector<size_t> shape) {
 		Array a(std::move(shape));
 		std::fill(a.data_.begin(), a.data_.end(), T(1));
 		return a;
 	}
 
+	static Array fill(std::vector<size_t> shape, T value) {
+		Array a(std::move(shape));
+		std::fill(a.data_.begin(), a.data_.end(), value);
+		return a;
+	}
+
+	// Returns an array filled with random values
+	static Array rand(std::vector<size_t> shape) {
+		Array a(std::move(shape));
+		// std::mt19937 rng(std::random_device{}());
+		// std::uniform_real_distribution<T> dist(0, 1);
+		// for (size_t i = 0; i < a.size_; ++i)
+		//	a.data_[i] = dist(rng);
+		return a;
+	}
+
+	// Returns an array filled with random values in the range (min, max) with
+	// optional include_lower/upper bounds
+	static Array ranged_rand(std::vector<size_t> shape, T min, T max,
+							 bool include_lower = false,
+							 bool include_upper = false) {
+		Array a(std::move(shape));
+		// std::uniform_real_distribution<T> dist(min, max);
+		// std::mt19937 rng(std::random_device{}());
+		// for (size_t i = 0; i < a.size_; ++i)
+		//	a.data_[i] = dist(rng);
+		// return a;
+	}
+
   private:
 	// Aligned storage — 64B for SIMD/cache line. bool stored byte-wise.
 	using alloc_t = AlignedAllocator<
-		std::conditional_t<std::is_same_v<T, bool>, uint8_t, T>, kSimdAlign>;
+		std::conditional_t<std::is_same_v<T, bool>, uint8_t, T>, kSIMDAlign>;
 	using inner_t = std::conditional_t<std::is_same_v<T, bool>, uint8_t, T>;
 	using storage_t = std::vector<inner_t, alloc_t>;
 	storage_t data_;
@@ -433,6 +488,8 @@ template <typename T> class Array {
 	DType dtype_;
 	Layout layout_ = Layout::RowMajor;
 
+	// Computes the strides for the array based on its shape and layout
+	// Strides are stored in the strides_ member variable
 	void compute_strides() {
 		strides_.resize(ndim_);
 		if (ndim_ == 0)
@@ -448,6 +505,8 @@ template <typename T> class Array {
 		}
 	}
 
+	// Computes the broadcast shape of two arrays, throwing an error if they are
+	// incompatible. Returns the broadcast shape as a vector of size_t
 	static std::vector<size_t> broadcast_shape(const std::vector<size_t> &a,
 											   const std::vector<size_t> &b) {
 		size_t na = a.size(), nb = b.size();
@@ -464,7 +523,7 @@ template <typename T> class Array {
 		return res;
 	}
 
-	// compute flat offset for operand given result multi-index
+	// Compute flat offset for operand given result multi-index
 	static size_t broadcast_offset(const std::vector<size_t> &shape,
 								   const std::vector<size_t> &strides,
 								   const std::vector<size_t> &res_idx,
@@ -483,6 +542,7 @@ template <typename T> class Array {
 		return offset;
 	}
 
+	// Element-wise operation between two arrays using a binary function
 	template <typename F> Array elementwise(const Array &o, F fn) const {
 		if (shape_ == o.shape_) {
 			Array res(shape_);
@@ -508,6 +568,8 @@ template <typename T> class Array {
 		}
 		return res;
 	}
+
+	// Scalar operation on array using a binary function
 	template <typename F> Array scalar_op(T s, F fn) const {
 		Array res(shape_);
 		for (size_t i = 0; i < size_; ++i)
@@ -515,6 +577,8 @@ template <typename T> class Array {
 		return res;
 	}
 
+	// Reduce operation along a given axis using a binary function and initial
+	// value
 	Array reduce_axis(size_t axis, T (*op)(T, T), T init) const {
 		if (axis >= ndim_)
 			throw std::out_of_range("reduce axis OOB");
@@ -556,6 +620,7 @@ template <typename T> class Array {
 		return out;
 	}
 
+	// Reduce operation along a given axis using min/max binary function
 	Array reduce_axis_minmax(size_t axis, bool is_min) const {
 		if (axis >= ndim_)
 			throw std::out_of_range("reduce axis OOB");

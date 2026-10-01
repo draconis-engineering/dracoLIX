@@ -1,7 +1,9 @@
 #pragma once
+
 // SVD prototype via symmetric eigen of A^T A (for m>=n) or A A^T
 // Phase 2, real double only.
 // Licensed under GPL-3.0-only
+
 #include "array.hpp"
 #include "eigen.hpp"
 #include "linalg.hpp"
@@ -10,12 +12,15 @@
 
 namespace dracolix::svd {
 
+// Result of SVD comp. Contains U, S, & Vt such that A = U * S * Vt^T.
 struct SvdResult {
 	Array<double> U;  // m x r
 	Array<double> S;  // r (singular values descending)
 	Array<double> Vt; // r x n
 };
 
+// Compute the SVD of a 2-D array using symmetric eigen of A^T A (for m>=n) or A
+// A^T. Returns U, S, Vt such that A = U * S * Vt^T.
 inline SvdResult svd(const Array<double> &A, double tol = 1e-10) {
 	if (A.ndim() != 2)
 		throw std::invalid_argument("svd requires 2-D");

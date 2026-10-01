@@ -145,10 +145,8 @@ template <typename T> class CscMatrix {
 };
 
 // ===========================================================================
-// // Implementation
-// ------------------------------------------------------------ //
+// Implementation ------------------------------------------------------------
 // ===========================================================================
-// //
 
 namespace detail {
 
@@ -231,6 +229,7 @@ inline std::vector<size_t> coo_order(size_t n, const std::vector<size_t> &a,
 // ---- CsrMatrix: construction ---- //
 // --------------------------------- //
 
+// Construct a CSRMatrix from a COO (Coordinate) triplet representation.
 template <typename T>
 CsrMatrix<T> CsrMatrix<T>::from_coo(size_t rows, size_t cols,
 									std::vector<size_t> row_ind,
@@ -262,6 +261,7 @@ CsrMatrix<T> CsrMatrix<T>::from_coo(size_t rows, size_t cols,
 	return out;
 }
 
+// Construct a CSRMatrix from a dense 2-D array.
 template <typename T>
 CsrMatrix<T> CsrMatrix<T>::from_dense(const Array<T> &dense) {
 	if (dense.ndim() != 2)
@@ -291,6 +291,7 @@ CsrMatrix<T> CsrMatrix<T>::from_dense(const Array<T> &dense) {
 // ---- CsrMatrix: dense + transpose ---- //
 // -------------------------------------- //
 
+// Convert the CSRMatrix to a dense 2-D array.
 template <typename T> Array<T> CsrMatrix<T>::to_dense() const {
 	Array<T> out({rows_, cols_});
 	std::fill(out.data(), out.data() + out.size(), T{});
@@ -300,6 +301,7 @@ template <typename T> Array<T> CsrMatrix<T>::to_dense() const {
 	return out;
 }
 
+// Transpose the CSRMatrix to a CSCMatrix.
 template <typename T> CscMatrix<T> CsrMatrix<T>::transpose() const {
 	// A^T is n x m. In CSC its columns are A's rows, so col_ptr is the
 	// compressed row-length histogram of A and row_ind are A's columns.
@@ -322,6 +324,7 @@ template <typename T> CscMatrix<T> CsrMatrix<T>::transpose() const {
 	return out;
 }
 
+// Transpose the CSRMatrix to a CSCMatrix.
 template <typename T> CscMatrix<T> CsrMatrix<T>::to_csc() const {
 	// CSC of A (same orientation): col_ptr compresses the column histogram of
 	// A; row_ind holds each entry's row. Visiting entries in CSR order keeps

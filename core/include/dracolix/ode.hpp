@@ -12,12 +12,15 @@ namespace dracolix::ode {
 using State = std::vector<double>;
 using RHS = std::function<State(double t, const State &y)>;
 
+// Utility function for state addition
 inline State add_state(const State &a, const State &b, double s = 1.0) {
 	State r(a.size());
 	for (size_t i = 0; i < a.size(); ++i)
 		r[i] = a[i] + s * b[i];
 	return r;
 }
+
+// Utility function for state scaling
 inline State scale_state(const State &a, double s) {
 	State r(a.size());
 	for (size_t i = 0; i < a.size(); ++i)
@@ -26,6 +29,8 @@ inline State scale_state(const State &a, double s) {
 }
 
 // Fixed-step Euler
+// Integrates the ODE using the fixed-step Euler method
+// Returns the trajectory of the solution as a vector of State objects
 inline std::vector<State> euler(RHS f, double t0, State y0, double t1,
 								double dt) {
 	if (dt <= 0)
@@ -47,6 +52,8 @@ inline std::vector<State> euler(RHS f, double t0, State y0, double t1,
 }
 
 // Classical RK4
+// Integrates the ODE using the classical RK4 method
+// Returns the trajectory of the solution as a vector of State objects
 inline std::vector<State> rk4(RHS f, double t0, State y0, double t1,
 							  double dt) {
 	if (dt <= 0)
@@ -71,6 +78,8 @@ inline std::vector<State> rk4(RHS f, double t0, State y0, double t1,
 }
 
 // Adaptive RK45 with simple step doubling (embedded error estimate)
+// Integrates the ODE using the RK45 method with adaptive step size control
+// Returns the trajectory of the solution as a vector of State objects
 inline std::vector<State> adaptive_rk45(RHS f, double t0, State y0, double t1,
 										double tol = 1e-6, double h0 = 0.1) {
 	if (h0 <= 0)
@@ -80,6 +89,8 @@ inline std::vector<State> adaptive_rk45(RHS f, double t0, State y0, double t1,
 	double t = t0;
 	State y = y0;
 	double h = h0;
+
+	// Helper function for RK45 step
 	auto rk_step = [&](double tt, const State &yy, double hh) {
 		State k1 = f(tt, yy);
 		State k2 = f(tt + hh / 2, add_state(yy, scale_state(k1, hh / 2)));
@@ -88,9 +99,11 @@ inline std::vector<State> adaptive_rk45(RHS f, double t0, State y0, double t1,
 		State y4(yy.size());
 		for (size_t i = 0; i < yy.size(); ++i)
 			y4[i] = yy[i] + hh / 6 * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]);
-		// half steps for error
+
+		// Half steps for error estimation
 		State y_half = yy;
 		double th = tt;
+
 		for (int s = 0; s < 2; ++s) {
 			double hs = hh / 2;
 			State k1h = f(th, y_half);
@@ -106,6 +119,8 @@ inline std::vector<State> adaptive_rk45(RHS f, double t0, State y0, double t1,
 		}
 		return std::pair<State, State>(y4, y_half);
 	};
+
+	// Adaptive RK45
 	while (t < t1 - 1e-12) {
 		if (t + h > t1)
 			h = t1 - t;
