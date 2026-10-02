@@ -382,7 +382,7 @@ inline void micro_gemm_256_f_partial(const float *__restrict Ap, int lda,
 						   (n1 > 4) ? kOn : 0, (n1 > 5) ? kOn : 0,
 						   (n1 > 6) ? kOn : 0, (n1 > 7) ? kOn : 0);
 
-	__m256 c[DRACOLIX_MR256_F][NV];
+	__m256 c[DRACOLIX_MR256_F][NV] = {};
 #pragma GCC unroll 6
 	for (int i = 0; i < mr; ++i) {
 		c[i][0] = _mm256_maskload_ps(&C[i * ldc], m0);
