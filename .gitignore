@@ -10,3 +10,7 @@
 *.pyd
 *.pyc
 .DS_Store
+
+# Profiler captures from the GEMM performance work (docs/perf-report-02102026.md).
+# Hundreds of MB; regenerate with `perf record` rather than committing.
+/data/*.data

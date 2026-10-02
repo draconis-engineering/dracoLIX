@@ -19,6 +19,9 @@ struct Features {
 	bool avx = false;
 	bool avx2 = false;
 	bool avx512f = false;
+	bool avx512dq = false;
+	bool avx512vl = false;
+	bool avx512bw = false;
 	bool fma = false;
 	std::string brand;
 };
@@ -52,6 +55,10 @@ inline Features detect() {
 	cpuid(regs, 7, 0);
 	f.avx2 = regs[1] & (1u << 5);
 	f.avx512f = regs[1] & (1u << 16);
+	f.avx512dq = regs[1] & (1u << 17);
+	// AVX512VL and AVX512BW are in leaf 7 subleaf 0, ebx bits 31 and 30.
+	f.avx512bw = regs[1] & (1u << 30);
+	f.avx512vl = regs[1] & (1u << 31);
 	// brand string (optional)
 	char brand[49] = {0};
 	for (unsigned int leaf = 0x80000002; leaf <= 0x80000004; ++leaf) {
@@ -81,6 +88,12 @@ inline std::string to_string(const Features &fe) {
 		s += "AVX2 ";
 	if (fe.avx512f)
 		s += "AVX512F ";
+	if (fe.avx512dq)
+		s += "AVX512DQ ";
+	if (fe.avx512vl)
+		s += "AVX512VL ";
+	if (fe.avx512bw)
+		s += "AVX512BW ";
 	if (fe.fma)
 		s += "FMA ";
 	s += "]";

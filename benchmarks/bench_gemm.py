@@ -17,7 +17,7 @@ except ImportError:
     dlx = None
 
 # Scale up to a size that requires heavy computing power
-N = 1000
+N = 2000
 print(f"scale: {N}x{N}")
 
 a = np.random.rand(N, N).astype(np.float64)

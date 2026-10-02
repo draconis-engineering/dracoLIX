@@ -8,6 +8,10 @@ version = "0.2.5-rc1"
 description = "DracoLIX - A native C++ high performance scientific computing platform"
 readme = "docs/README.md"
 requires-python = ">=3.10"
+# No runtime dependencies. The core is self-contained C++ and deliberately does
+# not pull in NumPy: DracoLIX arrays are native objects and interoperate with
+# NumPy through the buffer protocol without linking against it. Install the
+# `numpy` extra if you want the interop/benchmark helpers.
 dependencies = []
 license = {text = "GPL-3.0-or-later"}
 authors = [{name = "Simon Stordal Amundgård"}]
@@ -33,7 +37,10 @@ cmake.build-type = "Release"
 wheel.packages = ["bindings/python/dracolix"]
 
 [project.optional-dependencies]
-dev = ["pytest", "numpy"]
+# Interop with NumPy: dlx.array(np_array) and friends go through the buffer
+# protocol, so this is only needed if *you* want NumPy at runtime.
+numpy = ["numpy>=2.2.6"]
+dev = ["pytest", "numpy>=2.2.6"]
 
 [tool.cibuildwheel]
 # Pure C++ core, no Fortran needed for the wheels (DRACOLIX_USE_FORTRAN=OFF by

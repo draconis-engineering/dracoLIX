@@ -464,19 +464,19 @@ The architecture and roadmap described above represent the **direction of the pr
 
 - [x] Project foundation
 - [x] C++ numerical core
-- [ ] Initial Python interface (nanobind binding)
+- [x] Initial Python interface (nanobind binding)
 - [x] Matrix multiplication prototype
 - [x] Native DType system
 - [x] Native Array / Matrix types
 - [x] Memory layout system
-- [ ] Better benchmarking infrastructure
-- [ ] SIMD kernels
-- [ ] Parallel execution
+- [x] Better benchmarking infrastructure (backend matrix: scalar / AVX2 / AVX-512 / OpenBLAS, f64 + f32)
+- [x] SIMD kernels (register-blocked AVX-512 and AVX2, runtime-dispatched)
+- [x] Parallel execution (thread pool, row-panel-parallel GEMM, parallel reductions)
 - [x] Expanded linear algebra (matmul, matvec, dot, norms, diag, batched)
-- [ ] Sparse matrices
-- [ ] Numerical solvers
-- [ ] Julia interface
-- [ ] ODE/PDE tooling
+- [x] Sparse matrices (CSR/CSC, sparse matmul, CG)
+- [x] Numerical solvers (LU, QR, Cholesky, eigen, SVD)
+- [x] Julia interface (C ABI + ccall)
+- [ ] ODE/PDE tooling (ODE solvers done, PDE not started)
 - [ ] Optimization
 - [ ] Scientific simulation
 - [ ] CFD

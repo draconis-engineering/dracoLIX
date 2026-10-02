@@ -16,8 +16,15 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(DRACOLIX_USE_FORTRAN
 	"Build Fortran kernels and link gfortran + OpenBLAS" OFF)
 
+# Direct OpenBLAS/CBLAS backend (GemmKernel::Blas). Independent of the Fortran
+# kernels above: needs no Fortran compiler, just cblas.h + a BLAS library.
+# Off by default so wheels stay pure C++ with no BLAS runtime dependency.
+option(DRACOLIX_USE_BLAS "Enable the OpenBLAS GEMM backend" OFF)
+
 set(DRACOLIX_CORE_SOURCES
 	core/src/kernels/gemm.cpp
+	core/src/kernels/gemm_blocked.cpp
+	core/src/kernels/gemm_blas.cpp
 )
 
 if(DRACOLIX_USE_FORTRAN)
@@ -41,19 +48,41 @@ target_include_directories(dracolix_core PUBLIC
 	core/include
 )
 
-# x86 SIMD + warnings only for GCC and Clang (NOT AppleClang/MSVC, where
-# -mavx2/-mfma/-march=native are undefined or unsupported on arm64). gated to
-# C++ so a mixed Fortran build does not receive C++-only flags.
+# SIMD + warnings only for GCC and Clang (NOT AppleClang/MSVC).
+#
+# Deliberately NO -march=native and no -mavx2/-mfma here.
+#
+# `-march=native` compiles the whole library for the *build* machine, which
+# makes any binary (or wheel) produced on a modern CI runner fault with SIGILL
+# on older user CPUs. SIMD is instead selected per-function at runtime through
+# GCC/Clang `target` attributes in core/src/kernels/gemm_micro.hpp, gated by the
+# CPUID probe in cpu.hpp — one portable binary, best available kernel.
+#
+# -mtune is safe to keep: it changes scheduling, never the accepted instruction
+# set, so it cannot introduce an illegal instruction.
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
 	target_compile_options(dracolix_core PRIVATE
 		$<$<COMPILE_LANGUAGE:CXX>:-O3>
-		$<$<COMPILE_LANGUAGE:CXX>:-march=native>
+		$<$<COMPILE_LANGUAGE:CXX>:-mtune=native>
 		$<$<COMPILE_LANGUAGE:CXX>:-Wall>
 		$<$<COMPILE_LANGUAGE:CXX>:-Wextra>
 		$<$<COMPILE_LANGUAGE:CXX>:-Wpedantic>
-		$<$<COMPILE_LANGUAGE:CXX>:-mavx2>
-		$<$<COMPILE_LANGUAGE:CXX>:-mfma>
 	)
+endif()
+
+if(DRACOLIX_USE_BLAS)
+	find_path(CBLAS_INCLUDE_DIR cblas.h)
+	find_library(CBLAS_LIBRARY NAMES openblas blas)
+	if(CBLAS_INCLUDE_DIR AND CBLAS_LIBRARY)
+		target_compile_definitions(dracolix_core PUBLIC DRACOLIX_HAVE_BLAS)
+		target_include_directories(dracolix_core PRIVATE ${CBLAS_INCLUDE_DIR})
+		target_link_libraries(dracolix_core PUBLIC ${CBLAS_LIBRARY})
+		message(STATUS "DracoLIX: OpenBLAS GEMM backend enabled (${CBLAS_LIBRARY})")
+	else()
+		message(WARNING
+			"DracoLIX: DRACOLIX_USE_BLAS=ON but cblas.h/BLAS library not found; "
+			"falling back to the native GEMM kernels.")
+	endif()
 endif()
 
 if(DRACOLIX_USE_FORTRAN)

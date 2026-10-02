@@ -93,14 +93,17 @@ Her ville jeg begynt å bli litt gal på performance.
 - [x] Baseline implementations (scalar `ikj` GEMM in `core/src/kernels/gemm.cpp`, driven via `bench_core`)
 - [x] Memory profiling (`core/include/dracolix/mem.hpp:11` `current_rss_bytes`/`peak_rss_bytes` via `/proc/self/status`, `format_bytes`, wired into `bench_core --mem`)
 - [x] Cache-aware algorithms (`ikj` ordering, contiguous checks in `linalg.hpp:35`)
-- [x] SIMD (`gemm_f64/f32_avx2` FMA in `core/src/kernels/gemm.cpp:33`, `-mavx2 -mfma`)
-- [x] Multithreading (`core/include/dracolix/thread_pool.hpp:14`, `parallel_for` + `dispatch_gemm_*` gated for huge ops)
+- [x] SIMD (register-blocked microkernels in `core/src/kernels/gemm_micro.hpp`: f64 AVX-512 8×24 / AVX2 6×8, f32 AVX-512 8×32 / AVX2 6×16, selected at runtime via `target` attributes + CPUID — no global `-march=native`)
+- [x] Multithreading (`core/src/kernels/gemm_blocked.cpp`, row-panel parallel over disjoint C tiles)
 - [x] Parallel reductions (`core/include/dracolix/array.hpp:266` `sum`/`min`/`max` via `ThreadPool::global`)
 - [x] Thread pool (`core/include/dracolix/thread_pool.hpp:14`, global pool `hardware_concurrency`)
-- [x] Kernel dispatch (`core/include/dracolix/kernels/dispatch.hpp:18`, `select_gemm_kernel`, `dispatch_gemm_*`)
-- [x] CPU feature detection (`core/include/dracolix/cpu.hpp:12`, AVX/AVX2/AVX512F/FMA)
-- [x] Alignment (`core/include/dracolix/alloc.hpp:14`, 64B `AlignedAllocator`, `is_aligned`)
+- [x] Kernel dispatch (`core/include/dracolix/kernels/dispatch.hpp`, `gemm_backend()` honours `DLX_GEMM_BACKEND`, `dispatch_gemm_*`)
+- [x] CPU feature detection (`core/include/dracolix/cpu.hpp:12`, AVX/AVX2/AVX512F/DQ/VL/BW/FMA)
+- [x] Alignment (`core/include/dracolix/alloc.hpp:14`, 64B `AlignedAllocator`/`AlignedBuffer`, `is_aligned`)
 - [x] Optimized memory allocation (`AlignedAllocator` via `Array` storage `core/include/dracolix/array.hpp:355`)
+- [x] Cache blocking + packing (`core/src/kernels/gemm_blocked.cpp`, MC/NC/KC panels, packed `Ap`/`Bp`)
+- [x] GEMM backend matrix (`benchmarks/bench_gemm_backends.cpp`: scalar / avx2 / avx512 / openblas, validated vs the scalar oracle)
+- [x] GEMM correctness matrix (`tests/cpp/test_gemm.cpp`, 1200 shapes — f64 and f32 — across 5 backends incl. remainder tiles and degenerate m/n/p)
 
 Og viktig:
 
@@ -108,9 +111,9 @@ Benchmark mot etablerte biblioteker
 
 Ikke for å "slå NumPy" for enhver pris, men for å vite hvor du faktisk står.
 
-- [x] DracoLIX (bench_core, ~20 GFLOP/s on 512²)
+- [x] DracoLIX (~340 GFLOP/s on 4000², see `docs/perf-report-02102026.md`)
 - [x] NumPy (`benchmarks/compare_baseline.py`, `bench_gemm.py`)
-- [x] BLAS (plumbed via `DRACOLIX_USE_FORTRAN` / OpenBLAS)
+- [x] BLAS (plumbed via `DRACOLIX_USE_BLAS` / `core/src/kernels/gemm_blas.cpp`)
 - [x] OpenBLAS (linked optionally, `compare_baseline.py` probes)
 - [ ] MKL
 

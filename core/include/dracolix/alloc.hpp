@@ -72,4 +72,59 @@ inline bool is_aligned(const void *p, size_t align = kSIMDAlign) {
 	return (reinterpret_cast<uintptr_t>(p) % align) == 0;
 }
 
+// Minimal owning buffer of 64-byte aligned elements.
+//
+// Used for GEMM packing scratch, where the alignment is load-bearing (each
+// packed row must start on a vector boundary) and the size grows on demand.
+// Trivially copyable elements only — it never constructs or destructs.
+template <typename T, size_t Align = kSIMDAlign> class AlignedBuffer {
+  public:
+	AlignedBuffer() = default;
+	explicit AlignedBuffer(size_t n) { reset(n); }
+	~AlignedBuffer() { std::free(ptr_); }
+
+	AlignedBuffer(const AlignedBuffer &) = delete;
+	AlignedBuffer &operator=(const AlignedBuffer &) = delete;
+	AlignedBuffer(AlignedBuffer &&o) noexcept : ptr_(o.ptr_), n_(o.n_) {
+		o.ptr_ = nullptr;
+		o.n_ = 0;
+	}
+	AlignedBuffer &operator=(AlignedBuffer &&o) noexcept {
+		if (this != &o) {
+			std::free(ptr_);
+			ptr_ = o.ptr_;
+			n_ = o.n_;
+			o.ptr_ = nullptr;
+			o.n_ = 0;
+		}
+		return *this;
+	}
+
+	void reset(size_t n) {
+		if (n <= n_)
+			return;
+		void *p = nullptr;
+		const size_t bytes = ((n * sizeof(T) + Align - 1) / Align) * Align;
+#if defined(_WIN32) || defined(_WIN64)
+		p = _aligned_malloc(bytes, Align);
+#else
+		if (posix_memalign(&p, Align, bytes) != 0)
+			p = nullptr;
+#endif
+		if (!p)
+			throw std::bad_alloc();
+		std::free(ptr_);
+		ptr_ = static_cast<T *>(p);
+		n_ = n;
+	}
+
+	T *get() const noexcept { return ptr_; }
+	T *data() const noexcept { return ptr_; }
+	size_t capacity() const noexcept { return n_; }
+
+  private:
+	T *ptr_ = nullptr;
+	size_t n_ = 0;
+};
+
 } // namespace dracolix

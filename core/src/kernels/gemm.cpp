@@ -1,23 +1,41 @@
+// DracoLIX GEMM dispatch — chooses the backend, then calls it.
+// Licensed under GPL-3.0-or-later
+//
+// The scalar ikj kernel in this file is the *reference* implementation: it
+// stays exactly as it was so it can be used to validate the vectorized and
+// blocked kernels. Everything else routes through gemm_blocked.cpp.
+//
+// Backend selection is a runtime decision (see dispatch.hpp): the ISA is probed
+// on the running CPU and the vector kernels are compiled in behind `target`
+// attributes, so a single portable binary picks the best available path.
+
 #include "gemm.hpp"
 #include "dracolix/kernels/dispatch.hpp"
 #include "dracolix/thread_pool.hpp"
-#if defined(__AVX2__) || defined(__AVX__)
-#include <immintrin.h>
-#endif
 
 namespace dracolix::kernels {
 
-// Cache-friendly (i,k,j) ordering. Scalar baseline for Phase 3 to replace with
-// SIMD/BLAS.
+// Cache-blocked / packed / threaded double kernel (gemm_blocked.cpp).
+// `kernel` pins the ISA so the backend benchmark can measure avx2 vs avx512
+// separately; pass GemmKernel::Scalar to get the reference path.
+void gemm_blocked_f64(const double *A, const double *B, double *C, size_t m,
+					  size_t n, size_t p, size_t nthreads, GemmKernel kernel);
+void gemm_blocked_f32(const float *A, const float *B, float *C, size_t m,
+					  size_t n, size_t p, size_t nthreads, GemmKernel kernel);
+size_t gemm_recommended_threads(size_t m, size_t n, size_t p);
+
+// ---------------------------------------------------------------------------
+// Reference scalar kernels — cache-friendly (i,k,j). Do not "optimize" these:
+// they are the correctness oracle for every other backend.
+// ---------------------------------------------------------------------------
 void gemm_f64(const double *A, const double *B, double *C, size_t m, size_t n,
 			  size_t p) {
 	// Caller must zero C. Core owns this contract explicitly.
 	for (size_t i = 0; i < m; ++i) {
 		for (size_t k = 0; k < n; ++k) {
-			double aik = A[i * n + k];
-			for (size_t j = 0; j < p; ++j) {
+			const double aik = A[i * n + k];
+			for (size_t j = 0; j < p; ++j)
 				C[i * p + j] += aik * B[k * p + j];
-			}
 		}
 	}
 }
@@ -26,172 +44,61 @@ void gemm_f32(const float *A, const float *B, float *C, size_t m, size_t n,
 			  size_t p) {
 	for (size_t i = 0; i < m; ++i) {
 		for (size_t k = 0; k < n; ++k) {
-			float aik = A[i * n + k];
-			for (size_t j = 0; j < p; ++j) {
+			const float aik = A[i * n + k];
+			for (size_t j = 0; j < p; ++j)
 				C[i * p + j] += aik * B[k * p + j];
-			}
 		}
 	}
 }
 
-// ---- SIMD variants (compile-time specialization, runtime dispatch checks
-// feature) ----
-#if defined(__AVX2__)
-static void gemm_f64_avx2(const double *A, const double *B, double *C, size_t m,
-						  size_t n, size_t p) {
-	// 4-wide FMA: C row tiled, B row broadcast
-	for (size_t i = 0; i < m; ++i) {
-		for (size_t k = 0; k < n; ++k) {
-			__m256d aik = _mm256_broadcast_sd(&A[i * n + k]);
-			size_t j = 0;
-			for (; j + 4 <= p; j += 4) {
-				__m256d c = _mm256_loadu_pd(&C[i * p + j]);
-				__m256d b = _mm256_loadu_pd(&B[k * p + j]);
-#if defined(__FMA__)
-				c = _mm256_fmadd_pd(aik, b, c);
-#else
-				c = _mm256_add_pd(c, _mm256_mul_pd(aik, b));
-#endif
-				_mm256_storeu_pd(&C[i * p + j], c);
-			}
-			for (; j < p; ++j)
-				C[i * p + j] += A[i * n + k] * B[k * p + j];
-		}
-	}
-}
-static void gemm_f32_avx2(const float *A, const float *B, float *C, size_t m,
-						  size_t n, size_t p) {
-	for (size_t i = 0; i < m; ++i) {
-		for (size_t k = 0; k < n; ++k) {
-			__m256 aik = _mm256_broadcast_ss(&A[i * n + k]);
-			size_t j = 0;
-			for (; j + 8 <= p; j += 8) {
-				__m256 c = _mm256_loadu_ps(&C[i * p + j]);
-				__m256 b = _mm256_loadu_ps(&B[k * p + j]);
-#if defined(__FMA__)
-				c = _mm256_fmadd_ps(aik, b, c);
-#else
-				c = _mm256_add_ps(c, _mm256_mul_ps(aik, b));
-#endif
-				_mm256_storeu_ps(&C[i * p + j], c);
-			}
-			for (; j < p; ++j)
-				C[i * p + j] += A[i * n + k] * B[k * p + j];
-		}
-	}
-}
-#endif
-
+// ---------------------------------------------------------------------------
+// Dispatch
+// ---------------------------------------------------------------------------
 void dispatch_gemm_f64(const double *A, const double *B, double *C, size_t m,
 					   size_t n, size_t p) {
-	// Multithreading: experimental — enabled only for huge problems (tuned in
-	// Phase 8 NUMA)
-	size_t ops = m * n * p;
-	if (false && ops >= 1024 * 1024 * 1024 && m >= 256) {
-		// parallel row blocking — each row independent (C rows disjoint)
-		ThreadPool::global().parallel_for(m, [&](size_t i) {
-		// per-row ikj with AVX2 if available
-#if defined(__AVX2__)
-#if defined(__GNUC__)
-			bool has_avx2 = __builtin_cpu_supports("avx2");
-#else
-			bool has_avx2 = true;
-#endif
-			if (has_avx2) {
-				for (size_t k = 0; k < n; ++k) {
-					__m256d aik = _mm256_broadcast_sd(&A[i * n + k]);
-					size_t j = 0;
-					for (; j + 4 <= p; j += 4) {
-						__m256d c = _mm256_loadu_pd(&C[i * p + j]);
-						__m256d b = _mm256_loadu_pd(&B[k * p + j]);
-#if defined(__FMA__)
-						c = _mm256_fmadd_pd(aik, b, c);
-#else
-						c = _mm256_add_pd(c, _mm256_mul_pd(aik,b));
-#endif
-						_mm256_storeu_pd(&C[i * p + j], c);
-					}
-					for (; j < p; ++j)
-						C[i * p + j] += A[i * n + k] * B[k * p + j];
-				}
-				return;
-			}
-#endif
-			for (size_t k = 0; k < n; ++k) {
-				double aik = A[i * n + k];
-				for (size_t j = 0; j < p; ++j)
-					C[i * p + j] += aik * B[k * p + j];
-			}
-		});
+	if (m == 0 || n == 0 || p == 0)
+		return;
+
+	const GemmBackend be = gemm_backend();
+	switch (be.backend) {
+	case GemmBackendKind::Blas:
+		if (gemm_blas_f64(A, B, C, m, n, p))
+			return;
+		[[fallthrough]];
+	case GemmBackendKind::Native:
+	default: {
+		const size_t nt = gemm_recommended_threads(m, n, p);
+		gemm_blocked_f64(A, B, C, m, n, p, nt, be.kernel);
 		return;
 	}
-	auto k = select_gemm_kernel(m, n, p);
-#if defined(__AVX2__)
-	if (k == GemmKernel::Avx2 || k == GemmKernel::Avx512) {
-#if defined(__GNUC__)
-		if (__builtin_cpu_supports("avx2")) {
-			gemm_f64_avx2(A, B, C, m, n, p);
-			return;
-		}
-#endif
+	case GemmBackendKind::Scalar:
+		gemm_f64(A, B, C, m, n, p);
+		return;
 	}
-#endif
-	(void)k;
-	gemm_f64(A, B, C, m, n, p);
 }
 
 void dispatch_gemm_f32(const float *A, const float *B, float *C, size_t m,
 					   size_t n, size_t p) {
-	size_t ops = m * n * p;
-	if (false && ops >= 1024 * 1024 * 1024 && m >= 256) {
-		ThreadPool::global().parallel_for(m, [&](size_t i) {
-#if defined(__AVX2__)
-#if defined(__GNUC__)
-			bool has_avx2 = __builtin_cpu_supports("avx2");
-#else
-			bool has_avx2 = true;
-#endif
-			if (has_avx2) {
-				for (size_t k = 0; k < n; ++k) {
-					__m256 aik = _mm256_broadcast_ss(&A[i * n + k]);
-					size_t j = 0;
-					for (; j + 8 <= p; j += 8) {
-						__m256 c = _mm256_loadu_ps(&C[i * p + j]);
-						__m256 b = _mm256_loadu_ps(&B[k * p + j]);
-#if defined(__FMA__)
-						c = _mm256_fmadd_ps(aik, b, c);
-#else
-						c = _mm256_add_ps(c, _mm256_mul_ps(aik,b));
-#endif
-						_mm256_storeu_ps(&C[i * p + j], c);
-					}
-					for (; j < p; ++j)
-						C[i * p + j] += A[i * n + k] * B[k * p + j];
-				}
-				return;
-			}
-#endif
-			for (size_t k = 0; k < n; ++k) {
-				float aik = A[i * n + k];
-				for (size_t j = 0; j < p; ++j)
-					C[i * p + j] += aik * B[k * p + j];
-			}
-		});
+	if (m == 0 || n == 0 || p == 0)
+		return;
+
+	const GemmBackend be = gemm_backend();
+	switch (be.backend) {
+	case GemmBackendKind::Blas:
+		if (gemm_blas_f32(A, B, C, m, n, p))
+			return;
+		[[fallthrough]];
+	case GemmBackendKind::Native:
+	default:
+		// f32 now shares the same packed/blocked/threaded machinery as f64, with
+		// its own microkernels (AVX-512 8x32, AVX2 6x16).
+		gemm_blocked_f32(A, B, C, m, n, p, gemm_recommended_threads(m, n, p),
+						 be.kernel);
+		return;
+	case GemmBackendKind::Scalar:
+		gemm_f32(A, B, C, m, n, p);
 		return;
 	}
-	auto k = select_gemm_kernel(m, n, p);
-#if defined(__AVX2__)
-	if (k == GemmKernel::Avx2 || k == GemmKernel::Avx512) {
-#if defined(__GNUC__)
-		if (__builtin_cpu_supports("avx2")) {
-			gemm_f32_avx2(A, B, C, m, n, p);
-			return;
-		}
-#endif
-	}
-#endif
-	(void)k;
-	gemm_f32(A, B, C, m, n, p);
 }
 
 } // namespace dracolix::kernels
