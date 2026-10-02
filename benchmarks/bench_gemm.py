@@ -6,18 +6,11 @@ NumPy is used for matrix generation and as the reference baseline
 
 import time
 
-try:
-    import numpy as np
-except ImportError:
-    np = None
-
-try:
-    import dracolix as dlx
-except ImportError:
-    dlx = None
+import dracolix as dlx
+import numpy as np
 
 # Scale up to a size that requires heavy computing power
-N = 2000
+N = 200
 print(f"scale: {N}x{N}")
 
 a = np.random.rand(N, N).astype(np.float64)
