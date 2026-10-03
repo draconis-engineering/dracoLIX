@@ -1,4 +1,4 @@
-"""GEMM benchmark: dracolix core vs NumPy.
+"""GEMM benchmark: DracoLIX vs NumPy.
 
 NumPy is used for matrix generation and as the reference baseline
 (dev-only dependency, not a runtime dependency of dracolix).

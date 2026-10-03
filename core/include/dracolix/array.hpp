@@ -9,13 +9,12 @@
 #include "dtype.hpp"
 #include "layout.hpp"
 #include "thread_pool.hpp"
+
 #include <algorithm>
 #include <cstddef>
 #include <cstring>
 #include <future>
-#include <limits>
-#include <memory>
-#include <numeric>
+#include <random>
 #include <stdexcept>
 #include <type_traits>
 #include <vector>
@@ -503,27 +502,27 @@ template <typename T> class Array {
 		return a;
 	}
 
-	// Returns an array filled with random values
+	// Returns an array filled with random values between 0 and 1
 	static Array rand(std::vector<size_t> shape) {
 		Array a(std::move(shape));
-		// std::mt19937 rng(std::random_device{}());
-		// std::uniform_real_distribution<T> dist(0, 1);
-		// for (size_t i = 0; i < a.size_; ++i)
-		//	a.data_[i] = dist(rng);
+		std::mt19937 rng(std::random_device{}());
+		std::uniform_real_distribution<T> dist(0, 1);
+		for (size_t i = 0; i < a.size_; ++i)
+			a.data_[i] = dist(rng);
 		return a;
 	}
 
 	// Returns an array filled with random values in the range (min, max)
-	// with optional include_lower/upper bounds
+	// with optional include_min/max
 	static Array ranged_rand(std::vector<size_t> shape, T min, T max,
-							 bool include_lower = false,
-							 bool include_upper = false) {
+							 bool include_min = false,
+							 bool include_max = false) {
 		Array a(std::move(shape));
-		// std::uniform_real_distribution<T> dist(min, max);
-		// std::mt19937 rng(std::random_device{}());
-		// for (size_t i = 0; i < a.size_; ++i)
-		//	a.data_[i] = dist(rng);
-		// return a;
+		std::uniform_real_distribution<T> dist(min, max);
+		std::mt19937 rng(std::random_device{}());
+		for (size_t i = 0; i < a.size_; ++i)
+			a.data_[i] = dist(rng);
+		return a;
 	}
 
   private:
