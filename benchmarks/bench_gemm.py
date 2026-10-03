@@ -9,41 +9,40 @@ import time
 import dracolix as dlx
 import numpy as np
 
-# Scale up to a size that requires heavy computing power
-N = 200
-print(f"scale: {N}x{N}")
 
-a = np.random.rand(N, N).astype(np.float64)
-b = np.random.rand(N, N).astype(np.float64)
-a_dlx = dlx.array(a)
-b_dlx = dlx.array(b)
-
-
-def bench_numpy():
+def bench_numpy(array1, array2):
     start = time.perf_counter()
-    res = np.dot(a, b)
+    res = np.dot(array1, array2)
     return res, time.perf_counter() - start
 
 
-def bench_dracolix():
+def bench_dracolix(array1, array2):
+    dxa = dlx.array(array1)
+    dxb = dlx.array(array2)
     if dlx is None:
+        print("DracoLIX Time: skipped (Python binding not built yet)")
         return None, None
     start = time.perf_counter()
-    res = a_dlx @ b_dlx
+    res = dxa @ dxb
     return res, time.perf_counter() - start
 
 
 def main():
-    res_np, numpy_time = bench_numpy()
-    print(f"NumPy Time:    {numpy_time:.6f} seconds")
+    for n in [100, 500, 1000, 2000, 3000, 4000]:
+        array1 = np.random.rand(n, n).astype(np.float64)
+        array2 = np.random.rand(n, n).astype(np.float64)
+        print(f"size: {n}")
+        res_np, numpy_time = bench_numpy(array1, array2)
+        print(f"NumPy Time:    {numpy_time:.6f} seconds")
 
-    res_dl, dracolix_time = bench_dracolix()
-    if res_dl is None:
-        print("DracoLIX Time: skipped (Python binding not built yet)")
-    else:
-        print(f"DracoLIX Time: {dracolix_time:.6f} seconds")
-        assert np.allclose(res_np, np.asarray(res_dl)), "Mathematical mismatch!"
+        res_dl, dracolix_time = bench_dracolix(array1, array2)
+        if res_dl is None:
+            print("DracoLIX Time: skipped (Python binding not built yet)")
+        else:
+            print(f"DracoLIX Time: {dracolix_time:.6f} seconds")
+            assert np.allclose(res_np, np.asarray(res_dl)), "Mathematical mismatch!"
         print("Output validation passed successfully.")
+        print()
 
 
 if __name__ == "__main__":
