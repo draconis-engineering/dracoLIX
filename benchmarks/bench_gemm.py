@@ -32,17 +32,16 @@ def main():
         array1 = np.random.rand(n, n).astype(np.float64)
         array2 = np.random.rand(n, n).astype(np.float64)
         print(f"size: {n}")
+
         res_np, numpy_time = bench_numpy(array1, array2)
         print(f"NumPy Time:    {numpy_time:.6f} seconds")
 
         res_dl, dracolix_time = bench_dracolix(array1, array2)
-        if res_dl is None:
-            print("DracoLIX Time: skipped (Python binding not built yet)")
-        else:
-            print(f"DracoLIX Time: {dracolix_time:.6f} seconds")
-            assert np.allclose(res_np, np.asarray(res_dl)), "Mathematical mismatch!"
+        print(f"DracoLIX Time: {dracolix_time:.6f} seconds")
+
+        assert np.allclose(res_np, np.asarray(res_dl)), "Mathematical mismatch!"
+
         print("Output validation passed successfully.")
-        print()
 
 
 if __name__ == "__main__":
