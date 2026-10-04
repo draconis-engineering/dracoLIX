@@ -4,7 +4,6 @@
 // Euler, RK4, Adaptive RK45 (Dormand-Prince simplified)
 // Licensed under GPL-3.0+
 
-#include "array.hpp"
 #include <cmath>
 #include <functional>
 #include <stdexcept>
@@ -54,7 +53,7 @@ inline std::vector<State> euler(RHS f, double t0, State y0, double t1,
 	return traj;
 }
 
-// Classical RK4
+// Classical Runge Kutta 4
 // Integrates the ODE using the classical RK4 method
 // Returns the trajectory of the solution as a vector of State objects
 inline std::vector<State> rk4(RHS f, double t0, State y0, double t1,
@@ -80,7 +79,7 @@ inline std::vector<State> rk4(RHS f, double t0, State y0, double t1,
 	return traj;
 }
 
-// Adaptive RK45 with simple step doubling (embedded error estimate)
+// Adaptive Runge Kutta 45 with simple step doubling (embedded error estimate)
 // Integrates the ODE using the RK45 method with adaptive step size control
 // Returns the trajectory of the solution as a vector of State objects
 inline std::vector<State> adaptive_rk45(RHS f, double t0, State y0, double t1,

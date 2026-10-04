@@ -4,8 +4,6 @@
 // Licensed under GPL-3.0+
 
 #include <cstddef>
-#include <fstream>
-#include <sstream>
 #include <string>
 
 namespace dracolix::mem {
