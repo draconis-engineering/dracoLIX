@@ -34,6 +34,14 @@ void gemm_f64(const double *A, const double *B, double *C, size_t m, size_t n,
 	for (size_t i = 0; i < m; ++i) {
 		for (size_t k = 0; k < n; ++k) {
 			const double aik = A[i * n + k];
+
+#if defined(_MSC_VER) && !defined(__clang__)
+#pragma loop(no_vector)
+#elif defined(__clang__)
+#pragma clang loop vectorize(disable)
+#elif defined(__GNUC__)
+#pragma GCC optimize("no-tree-vectorize")
+#endif
 			for (size_t j = 0; j < p; ++j)
 				C[i * p + j] += aik * B[k * p + j];
 		}
@@ -45,6 +53,14 @@ void gemm_f32(const float *A, const float *B, float *C, size_t m, size_t n,
 	for (size_t i = 0; i < m; ++i) {
 		for (size_t k = 0; k < n; ++k) {
 			const float aik = A[i * n + k];
+
+#if defined(_MSC_VER) && !defined(__clang__)
+#pragma loop(no_vector)
+#elif defined(__clang__)
+#pragma clang loop vectorize(disable)
+#elif defined(__GNUC__)
+#pragma GCC optimize("no-tree-vectorize")
+#endif
 			for (size_t j = 0; j < p; ++j)
 				C[i * p + j] += aik * B[k * p + j];
 		}
@@ -90,8 +106,8 @@ void dispatch_gemm_f32(const float *A, const float *B, float *C, size_t m,
 		[[fallthrough]];
 	case GemmBackendKind::Native:
 	default:
-		// f32 now shares the same packed/blocked/threaded machinery as f64, with
-		// its own microkernels (AVX-512 8x32, AVX2 6x16).
+		// f32 now shares the same packed/blocked/threaded machinery as f64,
+		// with its own microkernels (AVX-512 8x32, AVX2 6x16).
 		gemm_blocked_f32(A, B, C, m, n, p, gemm_recommended_threads(m, n, p),
 						 be.kernel);
 		return;
