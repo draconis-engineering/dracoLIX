@@ -18,9 +18,9 @@
 // Exit code is non-zero if any backend deviates from the reference, so this
 // doubles as a regression test.
 
+#include "dracolix/cpu.hpp"
 #include "dracolix/kernels/dispatch.hpp"
 #include "dracolix/thread_pool.hpp"
-#include "dracolix/cpu.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -28,6 +28,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <stdlib.h>
 #include <string>
 #include <vector>
 
@@ -165,12 +166,16 @@ int main(int argc, char **argv) {
 			double scalar_gf = 0;
 			for (const auto &be : backends) {
 				// Pick the backend through the documented env override.
+#ifdef _WIN32
+				_putenv_s("DLX_GEMM_BACKEND",
+						  be == "openblas" ? "blas" : be.c_str());
+#else
 				setenv("DLX_GEMM_BACKEND",
 					   be == "openblas" ? "blas" : be.c_str(), 1);
-				const Row r =
-					(std::strcmp(dt, "f64") == 0)
-						? measure<double>(be, dt, n, A64, B64)
-						: measure<float>(be, dt, n, A32, B32);
+#endif
+				const Row r = (std::strcmp(dt, "f64") == 0)
+								  ? measure<double>(be, dt, n, A64, B64)
+								  : measure<float>(be, dt, n, A32, B32);
 				if (be == "scalar")
 					scalar_gf = r.gflops;
 				char rel[32] = "  -";
@@ -182,7 +187,11 @@ int main(int argc, char **argv) {
 							rel);
 				rows.push_back(r);
 			}
+#ifdef _WIN32
+			_putenv("DLX_GEMM_BACKEND");
+#else
 			unsetenv("DLX_GEMM_BACKEND");
+#endif
 			std::printf("\n");
 		}
 	}
@@ -190,8 +199,8 @@ int main(int argc, char **argv) {
 	// Tolerance is relative to the accumulation length, since the optimized
 	// kernels accumulate in a different order than the reference.
 	for (const auto &r : rows) {
-		const double tol = (std::strcmp(r.dtype, "f32") == 0 ? 1e-4 : 1e-11) *
-						   double(r.n);
+		const double tol =
+			(std::strcmp(r.dtype, "f32") == 0 ? 1e-4 : 1e-11) * double(r.n);
 		if (r.backend != "scalar" && r.maxerr > tol) {
 			std::fprintf(stderr,
 						 "FAIL: %s %s at n=%zu deviates from reference by %g "
@@ -201,6 +210,7 @@ int main(int argc, char **argv) {
 		}
 	}
 	if (rc == 0)
-		std::printf("all backends match the scalar reference within tolerance\n");
+		std::printf(
+			"all backends match the scalar reference within tolerance\n");
 	return rc;
 }
