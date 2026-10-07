@@ -16,12 +16,13 @@
 // unit: every thread writes a disjoint set of C rows and no synchronisation or
 // false sharing is needed.
 
-#include "gemm_micro.hpp"
-#include "gemm.hpp"
 #include "dracolix/alloc.hpp"
-#include "dracolix/thread_pool.hpp"
 #include "dracolix/cpu.hpp"
 #include "dracolix/kernels/dispatch.hpp"
+#include "dracolix/thread_pool.hpp"
+#include "gemm.hpp"
+#include "gemm_micro.hpp"
+
 
 #include <algorithm>
 #include <atomic>
@@ -96,8 +97,8 @@ Scratch &scratch_for(size_t idx) {
 
 // --- packing ---------------------------------------------------------------
 // A[ic:ic+mc, pc:pc+kc] -> Ap, row-major, dense. Row-major source is already
-// contiguous along k, so this is a strided copy that also guarantees each packed
-// row starts on a 64-byte boundary.
+// contiguous along k, so this is a strided copy that also guarantees each
+// packed row starts on a 64-byte boundary.
 template <typename T>
 void pack_a(const T *A, size_t lda, size_t mc, size_t kc, T *Ap, size_t lda_p) {
 	for (size_t i = 0; i < mc; ++i)
@@ -156,16 +157,16 @@ template <> struct Micro<float> {
 						float *c, int lc, int k) {
 		micro_gemm_512_f(a, la, b, lb, c, lc, k);
 	}
-	static void full256(const float *a, int la, const float *b, int lb, float *c,
-						int lc, int k) {
+	static void full256(const float *a, int la, const float *b, int lb,
+						float *c, int lc, int k) {
 		micro_gemm_256_f(a, la, b, lb, c, lc, k);
 	}
 	static void part512(const float *a, int la, const float *b, int lb,
 						float *c, int lc, int k, int mr, int nr) {
 		micro_gemm_512_f_partial(a, la, b, lb, c, lc, k, mr, nr);
 	}
-	static void part256(const float *a, int la, const float *b, int lb, float *c,
-						int lc, int k, int mr, int nr) {
+	static void part256(const float *a, int la, const float *b, int lb,
+						float *c, int lc, int k, int mr, int nr) {
 		micro_gemm_256_f_partial(a, la, b, lb, c, lc, k, mr, nr);
 	}
 };
@@ -214,10 +215,12 @@ static void gemm_rowpanel_serial(const T *A, size_t lda, const T *B, size_t ldb,
 						} else {
 							if (use512)
 								Mi::part512(ap, (int)kc, bp, (int)ncp, cp,
-											(int)ldc, (int)kc, (int)mr, (int)nr);
+											(int)ldc, (int)kc, (int)mr,
+											(int)nr);
 							else
 								Mi::part256(ap, (int)kc, bp, (int)ncp, cp,
-											(int)ldc, (int)kc, (int)mr, (int)nr);
+											(int)ldc, (int)kc, (int)mr,
+											(int)nr);
 						}
 					}
 				}
@@ -232,9 +235,9 @@ static void gemm_rowpanel_serial(const T *A, size_t lda, const T *B, size_t ldb,
 // ---------------------------------------------------------------------------
 template <typename T>
 static void gemm_blocked_impl(const T *A, const T *B, T *C, size_t m, size_t n,
-							   size_t p, size_t nthreads, GemmKernel kernel,
-							   void (*scalar_ref)(const T *, const T *, T *,
-												  size_t, size_t, size_t)) {
+							  size_t p, size_t nthreads, GEMMKernel kernel,
+							  void (*scalar_ref)(const T *, const T *, T *,
+												 size_t, size_t, size_t)) {
 #if !DRACOLIX_HAS_TARGET_ATTR
 	(void)nthreads;
 	(void)kernel;
@@ -249,9 +252,9 @@ static void gemm_blocked_impl(const T *A, const T *B, T *C, size_t m, size_t n,
 #endif
 
 	bool use512 = false;
-	if (kernel == GemmKernel::Avx512)
+	if (kernel == GEMMKernel::Avx512)
 		use512 = cpu_avx512;
-	else if (kernel == GemmKernel::Avx2)
+	else if (kernel == GEMMKernel::Avx2)
 		use512 = false;
 
 	if (!use512 && !feats.avx2) {
@@ -259,8 +262,9 @@ static void gemm_blocked_impl(const T *A, const T *B, T *C, size_t m, size_t n,
 		return;
 	}
 
-	// Split M into cache-blocked row panels, one per worker. Panels are disjoint
-	// in C, so no locking and no false sharing. One panel when it is small.
+	// Split M into cache-blocked row panels, one per worker. Panels are
+	// disjoint in C, so no locking and no false sharing. One panel when it is
+	// small.
 	const size_t rows_per_panel = kMC;
 	const size_t m_panels = (m + rows_per_panel - 1) / rows_per_panel;
 	size_t panels = 1;
@@ -295,12 +299,12 @@ static void gemm_blocked_impl(const T *A, const T *B, T *C, size_t m, size_t n,
 }
 
 void gemm_blocked_f64(const double *A, const double *B, double *C, size_t m,
-					  size_t n, size_t p, size_t nthreads, GemmKernel kernel) {
+					  size_t n, size_t p, size_t nthreads, GEMMKernel kernel) {
 	gemm_blocked_impl(A, B, C, m, n, p, nthreads, kernel, gemm_f64);
 }
 
 void gemm_blocked_f32(const float *A, const float *B, float *C, size_t m,
-					  size_t n, size_t p, size_t nthreads, GemmKernel kernel) {
+					  size_t n, size_t p, size_t nthreads, GEMMKernel kernel) {
 	gemm_blocked_impl(A, B, C, m, n, p, nthreads, kernel, gemm_f32);
 }
 
@@ -310,7 +314,8 @@ size_t gemm_recommended_threads(size_t m, size_t n, size_t p) {
 		return 1;
 	size_t hw = ThreadPool::global().size();
 	// Row panels are the only parallel axis; if we cannot fill the machine with
-	// at least one cache-blocked panel each, threading costs more than it saves.
+	// at least one cache-blocked panel each, threading costs more than it
+	// saves.
 	const size_t m_panels = (m + kMC - 1) / kMC;
 	return std::max<size_t>(1, std::min(hw, m_panels));
 }

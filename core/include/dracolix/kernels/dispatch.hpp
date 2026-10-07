@@ -20,17 +20,17 @@
 
 namespace dracolix::kernels {
 
-enum class GemmKernel {
+enum class GEMMKernel {
 	Scalar = 0, // reference ikj
-	Avx2,	   // register-blocked + packed + blocked
-	Avx512,	   // ditto, wider
-	Blas	   // OpenBLAS via DRACOLIX_USE_FORTRAN / direct cblas
+	Avx2,		// register-blocked + packed + blocked
+	Avx512,		// ditto, wider
+	Blas		// OpenBLAS via DRACOLIX_USE_FORTRAN / direct cblas
 };
 
-enum class GemmBackendKind {
+enum class GEMMBackendKind {
 	Scalar, // force the reference kernel
 	Native, // best in-tree vectorized kernel
-	Blas,	 // external BLAS
+	Blas,	// external BLAS
 };
 
 // Optional direct BLAS bindings. Compiled only when a BLAS was found at build
@@ -39,12 +39,12 @@ enum class GemmBackendKind {
 bool gemm_blas_available() noexcept;
 bool gemm_blas_f64(const double *A, const double *B, double *C, size_t m,
 				   size_t n, size_t p);
-bool gemm_blas_f32(const float *A, const float *B, float *C, size_t m,
-				   size_t n, size_t p);
+bool gemm_blas_f32(const float *A, const float *B, float *C, size_t m, size_t n,
+				   size_t p);
 
-struct GemmBackend {
-	GemmBackendKind backend = GemmBackendKind::Native;
-	GemmKernel kernel = GemmKernel::Scalar;
+struct GEMMBackend {
+	GEMMBackendKind backend = GEMMBackendKind::Native;
+	GEMMKernel kernel = GEMMKernel::Scalar;
 };
 
 // Probe the running CPU once. Cheap enough to call per GEMM, and keeps the
@@ -54,8 +54,8 @@ inline const cpu::Features &gemm_cpu_features() {
 	return f;
 }
 
-// User override, read exactly once (getenv is a linear scan of environ, and this
-// runs on every GEMM):
+// User override, read exactly once (getenv is a linear scan of environ, and
+// this runs on every GEMM):
 //   DLX_GEMM_BACKEND = scalar | native | avx2 | avx512 | blas
 // Lets the backend benchmark pin a specific path and gives a bisection handle
 // when a result looks wrong.
@@ -67,72 +67,72 @@ inline const char *gemm_backend_override() {
 	return e;
 }
 
-inline GemmBackend gemm_backend() {
-	GemmBackend out;
+inline GEMMBackend gemm_backend() {
+	GEMMBackend out;
 
 	// Widest vector kernel this CPU can actually run. The requirements mirror
 	// the `target` attributes on the kernels themselves.
 	const auto &f = gemm_cpu_features();
 	const bool cpu_avx512 = f.avx512f && f.avx512dq && f.avx512vl && f.avx2;
 	if (cpu_avx512)
-		out.kernel = GemmKernel::Avx512;
+		out.kernel = GEMMKernel::Avx512;
 	else if (f.avx2)
-		out.kernel = GemmKernel::Avx2;
+		out.kernel = GEMMKernel::Avx2;
 	else
-		out.kernel = GemmKernel::Scalar;
+		out.kernel = GEMMKernel::Scalar;
 
-	out.backend = (out.kernel == GemmKernel::Scalar) ? GemmBackendKind::Scalar
-													  : GemmBackendKind::Native;
+	out.backend = (out.kernel == GEMMKernel::Scalar) ? GEMMBackendKind::Scalar
+													 : GEMMBackendKind::Native;
 
 	const char *e = gemm_backend_override();
 	if (std::strcmp(e, "scalar") == 0) {
-		out.backend = GemmBackendKind::Scalar;
-		out.kernel = GemmKernel::Scalar;
+		out.backend = GEMMBackendKind::Scalar;
+		out.kernel = GEMMKernel::Scalar;
 	} else if (std::strcmp(e, "blas") == 0) {
 		if (gemm_blas_available())
-			out.backend = GemmBackendKind::Blas;
+			out.backend = GEMMBackendKind::Blas;
 	} else if (std::strcmp(e, "avx2") == 0) {
 		// Clamped to what this CPU can run, so kernel_name() never lies.
-		out.backend = GemmBackendKind::Native;
-		out.kernel = f.avx2 ? GemmKernel::Avx2 : GemmKernel::Scalar;
+		out.backend = GEMMBackendKind::Native;
+		out.kernel = f.avx2 ? GEMMKernel::Avx2 : GEMMKernel::Scalar;
 	} else if (std::strcmp(e, "avx512") == 0) {
-		out.backend = GemmBackendKind::Native;
+		out.backend = GEMMBackendKind::Native;
 		out.kernel = cpu_avx512
-						 ? GemmKernel::Avx512
-						 : (f.avx2 ? GemmKernel::Avx2 : GemmKernel::Scalar);
+						 ? GEMMKernel::Avx512
+						 : (f.avx2 ? GEMMKernel::Avx2 : GEMMKernel::Scalar);
 	}
 	// "native" and unset both mean: keep the probed choice.
 
 	// If no vector path is available but BLAS is, BLAS still beats scalar.
 	// An explicit "scalar" request still wins.
-	if (out.kernel == GemmKernel::Scalar && std::strcmp(e, "scalar") != 0 &&
+	if (out.kernel == GEMMKernel::Scalar && std::strcmp(e, "scalar") != 0 &&
 		gemm_blas_available())
-		out.backend = GemmBackendKind::Blas;
+		out.backend = GEMMBackendKind::Blas;
 
 	return out;
 }
 
-inline const char *kernel_name(GemmKernel k) {
+inline const char *kernel_name(GEMMKernel k) {
 	switch (k) {
-	case GemmKernel::Scalar:
+	case GEMMKernel::Scalar:
 		return "scalar-ikj";
-	case GemmKernel::Avx2:
+	case GEMMKernel::Avx2:
 		return "avx2-blocked";
-	case GemmKernel::Avx512:
+	case GEMMKernel::Avx512:
 		return "avx512-blocked";
-	case GemmKernel::Blas:
+	case GEMMKernel::Blas:
 		return "openblas";
 	}
 	return "unknown";
 }
 
-inline const char *backend_name(GemmBackendKind b) {
+inline const char *backend_name(GEMMBackendKind b) {
 	switch (b) {
-	case GemmBackendKind::Scalar:
+	case GEMMBackendKind::Scalar:
 		return "scalar";
-	case GemmBackendKind::Native:
+	case GEMMBackendKind::Native:
 		return "native";
-	case GemmBackendKind::Blas:
+	case GEMMBackendKind::Blas:
 		return "blas";
 	}
 	return "unknown";

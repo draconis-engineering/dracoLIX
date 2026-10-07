@@ -188,7 +188,7 @@ int main(int argc, char **argv) {
 				rows.push_back(r);
 			}
 #ifdef _WIN32
-			_putenv("DLX_GEMM_BACKEND");
+			_putenv("DLX_GEMM_BACKEND=");
 #else
 			unsetenv("DLX_GEMM_BACKEND");
 #endif

@@ -19,9 +19,9 @@ namespace dracolix::kernels {
 // `kernel` pins the ISA so the backend benchmark can measure avx2 vs avx512
 // separately; pass GemmKernel::Scalar to get the reference path.
 void gemm_blocked_f64(const double *A, const double *B, double *C, size_t m,
-					  size_t n, size_t p, size_t nthreads, GemmKernel kernel);
+					  size_t n, size_t p, size_t nthreads, GEMMKernel kernel);
 void gemm_blocked_f32(const float *A, const float *B, float *C, size_t m,
-					  size_t n, size_t p, size_t nthreads, GemmKernel kernel);
+					  size_t n, size_t p, size_t nthreads, GEMMKernel kernel);
 size_t gemm_recommended_threads(size_t m, size_t n, size_t p);
 
 // ---------------------------------------------------------------------------
@@ -78,19 +78,19 @@ void dispatch_gemm_f64(const double *A, const double *B, double *C, size_t m,
 	if (m == 0 || n == 0 || p == 0)
 		return;
 
-	const GemmBackend be = gemm_backend();
+	const GEMMBackend be = gemm_backend();
 	switch (be.backend) {
-	case GemmBackendKind::Blas:
+	case GEMMBackendKind::Blas:
 		if (gemm_blas_f64(A, B, C, m, n, p))
 			return;
 		[[fallthrough]];
-	case GemmBackendKind::Native:
+	case GEMMBackendKind::Native:
 	default: {
 		const size_t nt = gemm_recommended_threads(m, n, p);
 		gemm_blocked_f64(A, B, C, m, n, p, nt, be.kernel);
 		return;
 	}
-	case GemmBackendKind::Scalar:
+	case GEMMBackendKind::Scalar:
 		gemm_f64(A, B, C, m, n, p);
 		return;
 	}
@@ -101,20 +101,20 @@ void dispatch_gemm_f32(const float *A, const float *B, float *C, size_t m,
 	if (m == 0 || n == 0 || p == 0)
 		return;
 
-	const GemmBackend be = gemm_backend();
+	const GEMMBackend be = gemm_backend();
 	switch (be.backend) {
-	case GemmBackendKind::Blas:
+	case GEMMBackendKind::Blas:
 		if (gemm_blas_f32(A, B, C, m, n, p))
 			return;
 		[[fallthrough]];
-	case GemmBackendKind::Native:
+	case GEMMBackendKind::Native:
 	default:
 		// f32 now shares the same packed/blocked/threaded machinery as f64,
 		// with its own microkernels (AVX-512 8x32, AVX2 6x16).
 		gemm_blocked_f32(A, B, C, m, n, p, gemm_recommended_threads(m, n, p),
 						 be.kernel);
 		return;
-	case GemmBackendKind::Scalar:
+	case GEMMBackendKind::Scalar:
 		gemm_f32(A, B, C, m, n, p);
 		return;
 	}
