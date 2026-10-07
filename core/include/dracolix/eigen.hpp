@@ -7,6 +7,7 @@
 #include "array.hpp"
 #include <algorithm>
 #include <cmath>
+#include <numeric>
 
 namespace dracolix::eigen {
 
