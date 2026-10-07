@@ -28,6 +28,10 @@ size_t gemm_recommended_threads(size_t m, size_t n, size_t p);
 // Reference scalar kernels — cache-friendly (i,k,j). Do not "optimize" these:
 // they are the correctness oracle for every other backend.
 // ---------------------------------------------------------------------------
+#if defined(__GNUC__) && !defined(__clang__)
+// Tell GCC globally to disable auto-vectorization for these specific functions
+__attribute__((optimize("no-tree-vectorize")))
+#endif
 void gemm_f64(const double *A, const double *B, double *C, size_t m, size_t n,
 			  size_t p) {
 	// Caller must zero C. Core owns this contract explicitly.
@@ -39,8 +43,6 @@ void gemm_f64(const double *A, const double *B, double *C, size_t m, size_t n,
 #pragma loop(no_vector)
 #elif defined(__clang__)
 #pragma clang loop vectorize(disable)
-#elif defined(__GNUC__)
-#pragma GCC optimize("no-tree-vectorize")
 #endif
 			for (size_t j = 0; j < p; ++j)
 				C[i * p + j] += aik * B[k * p + j];
@@ -48,6 +50,9 @@ void gemm_f64(const double *A, const double *B, double *C, size_t m, size_t n,
 	}
 }
 
+#if defined(__GNUC__) && !defined(__clang__)
+__attribute__((optimize("no-tree-vectorize")))
+#endif
 void gemm_f32(const float *A, const float *B, float *C, size_t m, size_t n,
 			  size_t p) {
 	for (size_t i = 0; i < m; ++i) {
@@ -58,8 +63,6 @@ void gemm_f32(const float *A, const float *B, float *C, size_t m, size_t n,
 #pragma loop(no_vector)
 #elif defined(__clang__)
 #pragma clang loop vectorize(disable)
-#elif defined(__GNUC__)
-#pragma GCC optimize("no-tree-vectorize")
 #endif
 			for (size_t j = 0; j < p; ++j)
 				C[i * p + j] += aik * B[k * p + j];
