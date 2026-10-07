@@ -77,18 +77,27 @@ class ThreadPool {
 		}
 		if (grain == 0)
 			grain = std::max<size_t>(1, n / (n_threads_ * 4));
+
+		// Decay the type to ensure we can store a clean copy of the callable
+		// object
+		using DecayedF = typename std::decay<F>::type;
+		DecayedF fn_copy = std::forward<F>(fn);
+
 		std::atomic<size_t> next{0};
 		std::vector<std::future<void>> futs;
 		futs.reserve(n_threads_);
+
 		for (size_t t = 0; t < n_threads_; ++t) {
-			futs.emplace_back(enqueue([&, grain] {
+			// Explicitly capture next by reference, and n, grain, fn_copy
+			// cleanly by value
+			futs.emplace_back(enqueue([&next, n, grain, fn_copy] {
 				for (;;) {
 					size_t start = next.fetch_add(grain);
 					if (start >= n)
 						break;
 					size_t end = std::min(n, start + grain);
 					for (size_t i = start; i < end; ++i)
-						fn(i);
+						fn_copy(i);
 				}
 			}));
 		}

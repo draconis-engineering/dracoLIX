@@ -123,5 +123,3 @@ endif()
 if(NOT SKBUILD)
 	add_subdirectory(benchmarks)
 endif()
-
-add_compile_options(/fsanitize=address)
