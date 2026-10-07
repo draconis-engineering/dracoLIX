@@ -26,14 +26,14 @@
 
 #include <cstddef>
 
-#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) ||            \
+#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) ||             \
 	defined(_M_IX86)
 #define DRACOLIX_GEMM_X86 1
 #endif
 
 #if defined(DRACOLIX_GEMM_X86) && (defined(__GNUC__) || defined(__clang__))
 #define DRACOLIX_TARGET_AVX2 __attribute__((target("avx2,fma")))
-#define DRACOLIX_TARGET_AVX512                                                   \
+#define DRACOLIX_TARGET_AVX512                                                 \
 	__attribute__((target("avx512f,avx512dq,avx512vl,avx512bw")))
 #define DRACOLIX_HAS_TARGET_ATTR 1
 #else
@@ -151,10 +151,12 @@ inline void micro_gemm_512_partial(const double *__restrict Ap, int lda,
 	constexpr int NV = DRACOLIX_NR512 / 8;
 
 	const __mmask8 m0 = (__mmask8)((1u << (nr > 0 ? nr : 0)) - 1u);
-	const __mmask8 m1 = (nr > 8) ? (__mmask8)((1u << (nr - 8)) - 1u) : (__mmask8)0;
-	const __mmask8 m2 = (nr > 16) ? (__mmask8)((1u << (nr - 16)) - 1u) : (__mmask8)0;
+	const __mmask8 m1 =
+		(nr > 8) ? (__mmask8)((1u << (nr - 8)) - 1u) : (__mmask8)0;
+	const __mmask8 m2 =
+		(nr > 16) ? (__mmask8)((1u << (nr - 16)) - 1u) : (__mmask8)0;
 
-	__m512d c[DRACOLIX_MR512][NV];
+	__m512d c[DRACOLIX_MR512][NV] = {};
 #pragma GCC unroll 8
 	for (int i = 0; i < mr; ++i) {
 		c[i][0] = _mm512_maskz_loadu_pd(m0, &C[i * ldc]);
@@ -199,18 +201,19 @@ inline void micro_gemm_256_partial(const double *__restrict Ap, int lda,
 
 	// AVX2 (pre-AVX512) mask intrinsics take a vector of lane masks where each
 	// 64-bit lane selects on its *most significant bit* — note this is a
-	// different convention from AVX-512's __mmask8, which uses bit i for lane i.
+	// different convention from AVX-512's __mmask8, which uses bit i for lane
+	// i.
 	const int n0 = nr > 4 ? 4 : nr;
 	const int n1 = nr > 4 ? (nr - 4 > 4 ? 4 : nr - 4) : 0;
 	constexpr long long kOn = 1LL << 63;
-	const __m256i m0 = _mm256_setr_epi64x(
-		(n0 > 0) ? kOn : 0, (n0 > 1) ? kOn : 0, (n0 > 2) ? kOn : 0,
-		(n0 > 3) ? kOn : 0);
-	const __m256i m1 = _mm256_setr_epi64x(
-		(n1 > 0) ? kOn : 0, (n1 > 1) ? kOn : 0, (n1 > 2) ? kOn : 0,
-		(n1 > 3) ? kOn : 0);
+	const __m256i m0 =
+		_mm256_setr_epi64x((n0 > 0) ? kOn : 0, (n0 > 1) ? kOn : 0,
+						   (n0 > 2) ? kOn : 0, (n0 > 3) ? kOn : 0);
+	const __m256i m1 =
+		_mm256_setr_epi64x((n1 > 0) ? kOn : 0, (n1 > 1) ? kOn : 0,
+						   (n1 > 2) ? kOn : 0, (n1 > 3) ? kOn : 0);
 
-	__m256d c[DRACOLIX_MR256][NV];
+	__m256d c[DRACOLIX_MR256][NV] = {};
 #pragma GCC unroll 6
 	for (int i = 0; i < mr; ++i) {
 		c[i][0] = _mm256_maskload_pd(&C[i * ldc], m0);
@@ -295,7 +298,7 @@ inline void micro_gemm_256_f(const float *__restrict Ap, int lda,
 	constexpr int MR = DRACOLIX_MR256_F;
 	constexpr int NV = DRACOLIX_NR256_F / 8; // 2 ymm per row
 
-	__m256 c[MR][NV];
+	__m256 c[MR][NV] = {};
 #pragma GCC unroll 6
 	for (int i = 0; i < MR; ++i)
 #pragma GCC unroll 2
@@ -324,14 +327,14 @@ inline void micro_gemm_256_f(const float *__restrict Ap, int lda,
 DRACOLIX_TARGET_AVX512
 inline void micro_gemm_512_f_partial(const float *__restrict Ap, int lda,
 									 const float *__restrict Bp, int ldb,
-									 float *__restrict C, int ldc, int k, int mr,
-									 int nr) {
+									 float *__restrict C, int ldc, int k,
+									 int mr, int nr) {
 	constexpr int NV = DRACOLIX_NR512_F / 16;
 	const __mmask16 m0 = (__mmask16)(((1u << nr) - 1u) & 0xFFFFu);
-	const __mmask16 m1 = (nr > 16) ? (__mmask16)((1u << (nr - 16)) - 1u)
-								  : (__mmask16)0;
+	const __mmask16 m1 =
+		(nr > 16) ? (__mmask16)((1u << (nr - 16)) - 1u) : (__mmask16)0;
 
-	__m512 c[DRACOLIX_MR512_F][NV];
+	__m512 c[DRACOLIX_MR512_F][NV] = {};
 #pragma GCC unroll 8
 	for (int i = 0; i < mr; ++i) {
 		c[i][0] = _mm512_maskz_loadu_ps(m0, &C[i * ldc]);
@@ -361,8 +364,8 @@ inline void micro_gemm_512_f_partial(const float *__restrict Ap, int lda,
 DRACOLIX_TARGET_AVX2
 inline void micro_gemm_256_f_partial(const float *__restrict Ap, int lda,
 									 const float *__restrict Bp, int ldb,
-									 float *__restrict C, int ldc, int k, int mr,
-									 int nr) {
+									 float *__restrict C, int ldc, int k,
+									 int mr, int nr) {
 	constexpr int NV = DRACOLIX_NR256_F / 8;
 	const int n0 = nr > 8 ? 8 : nr;
 	const int n1 = nr > 8 ? (nr - 8 > 8 ? 8 : nr - 8) : 0;
@@ -371,16 +374,14 @@ inline void micro_gemm_256_f_partial(const float *__restrict Ap, int lda,
 	// enabled lane is INT32_MIN rather than a bit-shift mask.
 	constexpr int kOn = static_cast<int>(0x80000000u);
 	// All 8 lanes must be covered: an AVX2 ymm holds 8 floats, not 4.
-	const __m256i m0 =
-		_mm256_setr_epi32((n0 > 0) ? kOn : 0, (n0 > 1) ? kOn : 0,
-						   (n0 > 2) ? kOn : 0, (n0 > 3) ? kOn : 0,
-						   (n0 > 4) ? kOn : 0, (n0 > 5) ? kOn : 0,
-						   (n0 > 6) ? kOn : 0, (n0 > 7) ? kOn : 0);
-	const __m256i m1 =
-		_mm256_setr_epi32((n1 > 0) ? kOn : 0, (n1 > 1) ? kOn : 0,
-						   (n1 > 2) ? kOn : 0, (n1 > 3) ? kOn : 0,
-						   (n1 > 4) ? kOn : 0, (n1 > 5) ? kOn : 0,
-						   (n1 > 6) ? kOn : 0, (n1 > 7) ? kOn : 0);
+	const __m256i m0 = _mm256_setr_epi32(
+		(n0 > 0) ? kOn : 0, (n0 > 1) ? kOn : 0, (n0 > 2) ? kOn : 0,
+		(n0 > 3) ? kOn : 0, (n0 > 4) ? kOn : 0, (n0 > 5) ? kOn : 0,
+		(n0 > 6) ? kOn : 0, (n0 > 7) ? kOn : 0);
+	const __m256i m1 = _mm256_setr_epi32(
+		(n1 > 0) ? kOn : 0, (n1 > 1) ? kOn : 0, (n1 > 2) ? kOn : 0,
+		(n1 > 3) ? kOn : 0, (n1 > 4) ? kOn : 0, (n1 > 5) ? kOn : 0,
+		(n1 > 6) ? kOn : 0, (n1 > 7) ? kOn : 0);
 
 	__m256 c[DRACOLIX_MR256_F][NV] = {};
 #pragma GCC unroll 6
