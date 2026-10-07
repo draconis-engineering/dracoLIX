@@ -14,14 +14,15 @@
 // for lane i. Using the AVX-512 idiom in the AVX2 path silently disabled the
 // lanes and produced wrong results for any n not a multiple of 4.
 
+#include "dracolix/cpu.hpp"
 #include "dracolix/kernels/dispatch.hpp"
 #include "dracolix/thread_pool.hpp"
-#include "dracolix/cpu.hpp"
 
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <stdlib.h>
 #include <string>
 #include <vector>
 
@@ -35,7 +36,8 @@ int failures = 0;
 // path with the optimized kernel, so it can catch blocking/masking mistakes
 // that a shared helper would hide.
 template <typename T>
-void reference_gemm(const T *A, const T *B, T *C, size_t m, size_t n, size_t p) {
+void reference_gemm(const T *A, const T *B, T *C, size_t m, size_t n,
+					size_t p) {
 	for (size_t i = 0; i < m; ++i)
 		for (size_t j = 0; j < p; ++j) {
 			T acc = T(0);
@@ -71,8 +73,9 @@ void check(const std::string &backend, size_t m, size_t n, size_t p) {
 	// a few ulps of the magnitudes involved rather than demanding bit equality.
 	const double tol = 1e-11 * double(n);
 	if (!(worst <= tol)) {
-		std::printf("  FAIL f64 %-8s %zux%zu * %zux%zu   max|diff| = %.3g (tol %.3g)\n",
-					backend.c_str(), m, n, n, p, worst, tol);
+		std::printf(
+			"  FAIL f64 %-8s %zux%zu * %zux%zu   max|diff| = %.3g (tol %.3g)\n",
+			backend.c_str(), m, n, n, p, worst, tol);
 		++failures;
 	}
 }
@@ -93,13 +96,15 @@ void check_f32(const std::string &backend, size_t m, size_t n, size_t p) {
 
 	double worst = 0.0;
 	for (size_t i = 0; i < want.size(); ++i)
-		worst = std::max<double>(worst, std::fabs(double(want[i]) - double(got[i])));
+		worst = std::max<double>(worst,
+								 std::fabs(double(want[i]) - double(got[i])));
 
 	// f32 accumulates in single precision, so the tolerance is eps * n.
 	const double tol = 1e-6 * double(n);
 	if (!(worst <= tol)) {
-		std::printf("  FAIL f32 %-8s %zux%zu * %zux%zu   max|diff| = %.3g (tol %.3g)\n",
-					backend.c_str(), m, n, n, p, worst, tol);
+		std::printf(
+			"  FAIL f32 %-8s %zux%zu * %zux%zu   max|diff| = %.3g (tol %.3g)\n",
+			backend.c_str(), m, n, n, p, worst, tol);
 		++failures;
 	}
 }
@@ -115,10 +120,10 @@ int main() {
 				kernels::kernel_name(kernels::gemm_backend().kernel),
 				ThreadPool::global().size());
 
-	// Sizes chosen to hit every remainder combination against the 8x24 (AVX-512)
-	// and 6x8 (AVX2) microkernels, and the 256^3 cache block.
-	const size_t sizes[] = {1,   2,   3,   5,   7,   8,   9,   15,  16,  17,
-							23,  24,  25,  31,  32,  47,  48,  63,  64,  65,
+	// Sizes chosen to hit every remainder combination against the 8x24
+	// (AVX-512) and 6x8 (AVX2) microkernels, and the 256^3 cache block.
+	const size_t sizes[] = {1,	 2,	  3,   5,	7,	 8,	  9,   15,	16,	 17,
+							23,	 24,  25,  31,	32,	 47,  48,  63,	64,	 65,
 							127, 128, 129, 191, 255, 256, 257, 300, 511, 512};
 
 	std::vector<std::string> backends = {"native"};
@@ -132,18 +137,22 @@ int main() {
 
 	size_t cases = 0;
 	for (const auto &be : backends) {
+#ifdef _WIN32
+		_putenv_s("DLX_GEMM_BACKEND", be.c_str());
+#else
 		setenv("DLX_GEMM_BACKEND", be.c_str(), 1);
+#endif
 		std::printf("  backend %-8s\n", be.c_str());
 		for (size_t n : sizes) {
-			check(be, n, n, n);   // square
+			check(be, n, n, n); // square
 			++cases;
 			check(be, n, n + 1, n - 1); // ragged m,n,p
 			++cases;
-			check(be, 1, n, n);        // degenerate m (row vector)
+			check(be, 1, n, n); // degenerate m (row vector)
 			++cases;
-			check(be, n, 1, n);        // degenerate n (outer product)
+			check(be, n, 1, n); // degenerate n (outer product)
 			++cases;
-			check(be, n, n, 1);        // degenerate p (column vector)
+			check(be, n, n, 1); // degenerate p (column vector)
 			++cases;
 		}
 		// f32 microkernels are separate code with different tile shapes and a
@@ -160,7 +169,11 @@ int main() {
 			check_f32(be, n, n, 1);
 			++cases;
 		}
+#ifdef _WIN32
+		_putenv_s("DLX_GEMM_BACKEND", "");
+#else
 		unsetenv("DLX_GEMM_BACKEND");
+#endif
 	}
 	std::printf("  %zu shapes checked across %zu backends\n", cases,
 				backends.size());
