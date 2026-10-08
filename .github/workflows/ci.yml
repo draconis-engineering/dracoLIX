@@ -17,6 +17,13 @@ jobs:
           - label: cxx
             fortran: "OFF"
             apt: ninja-build
+          - label: cxx-sanitize
+            fortran: "OFF"
+            apt: ninja-build
+            # ASan+UBSan deterministically caught the f32 AVX-512 mask UB
+            # (1u << 32) that value-based tests only see under some codegen —
+            # see docs/perf-report-02102026.md §24.
+            cmake_flags: "-DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer"
           - label: fortran
             fortran: "ON"
             apt: ninja-build gfortran libopenblas-dev
@@ -29,7 +36,7 @@ jobs:
           sudo apt-get install -y ${{ matrix.apt }}
 
       - name: Configure
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DDRACOLIX_USE_FORTRAN=${{ matrix.fortran }}
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DDRACOLIX_USE_FORTRAN=${{ matrix.fortran }} ${{ matrix.cmake_flags }}
 
       - name: Build
         run: cmake --build build

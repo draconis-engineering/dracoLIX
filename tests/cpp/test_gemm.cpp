@@ -137,12 +137,53 @@ int main() {
 
 	size_t cases = 0;
 	for (const auto &be : backends) {
-#ifdef _WIN32
-		_putenv_s("DLX_GEMM_BACKEND", be.c_str());
-#else
-		setenv("DLX_GEMM_BACKEND", be.c_str(), 1);
-#endif
-		std::printf("  backend %-8s\n", be.c_str());
+		kernels::set_gemm_backend_override(be.c_str());
+
+		// Prove the override took. If this ever falls back to reading the env
+		// var once at startup, every row below would silently run the same
+		// kernel under four different names — the harness would keep passing
+		// while covering a single path, and a failure would be logged against
+		// the wrong backend. Fail loudly rather than report a false matrix.
+		const auto sel = kernels::gemm_backend();
+		const bool cpu_avx512 = feats.avx512f && feats.avx512dq &&
+								feats.avx512vl && feats.avx2;
+		// The test only ever asks for backends this CPU can run.
+		const kernels::GEMMKernel best = cpu_avx512
+											 ? kernels::GEMMKernel::Avx512
+											 : (feats.avx2 ? kernels::GEMMKernel::Avx2
+														   : kernels::GEMMKernel::Scalar);
+
+		kernels::GEMMBackendKind want_backend;
+		kernels::GEMMKernel want_kernel;
+		if (be == "scalar") {
+			want_backend = kernels::GEMMBackendKind::Scalar;
+			want_kernel = kernels::GEMMKernel::Scalar;
+		} else if (be == "blas") {
+			want_backend = kernels::GEMMBackendKind::Blas;
+			want_kernel = sel.kernel; // BLAS keeps the probed vector kernel
+		} else if (be == "avx2") {
+			want_backend = kernels::GEMMBackendKind::Native;
+			want_kernel = feats.avx2 ? kernels::GEMMKernel::Avx2
+									 : kernels::GEMMKernel::Scalar;
+		} else if (be == "avx512") {
+			want_backend = kernels::GEMMBackendKind::Native;
+			want_kernel = best;
+		} else { // "native": untouched probe
+			want_kernel = best;
+			want_backend = (best == kernels::GEMMKernel::Scalar)
+							   ? kernels::GEMMBackendKind::Scalar
+							   : kernels::GEMMBackendKind::Native;
+		}
+		if (sel.backend != want_backend || sel.kernel != want_kernel) {
+			std::printf("  OVERRIDE FAILED: asked for '%s', got %s / %s\n",
+						be.c_str(), kernels::backend_name(sel.backend),
+						kernels::kernel_name(sel.kernel));
+			++failures;
+		}
+
+		std::printf("  backend %-8s -> %s / %s\n", be.c_str(),
+					kernels::backend_name(sel.backend),
+					kernels::kernel_name(sel.kernel));
 		for (size_t n : sizes) {
 			check(be, n, n, n); // square
 			++cases;
@@ -169,11 +210,7 @@ int main() {
 			check_f32(be, n, n, 1);
 			++cases;
 		}
-#ifdef _WIN32
-		_putenv_s("DLX_GEMM_BACKEND", "");
-#else
-		unsetenv("DLX_GEMM_BACKEND");
-#endif
+		kernels::set_gemm_backend_override(nullptr);
 	}
 	std::printf("  %zu shapes checked across %zu backends\n", cases,
 				backends.size());

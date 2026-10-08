@@ -81,7 +81,7 @@ template <typename T, size_t Align = kSIMDAlign> class AlignedBuffer {
   public:
 	AlignedBuffer() = default;
 	explicit AlignedBuffer(size_t n) { reset(n); }
-	~AlignedBuffer() { std::free(ptr_); }
+	~AlignedBuffer() { release(ptr_); }
 
 	AlignedBuffer(const AlignedBuffer &) = delete;
 	AlignedBuffer &operator=(const AlignedBuffer &) = delete;
@@ -91,7 +91,7 @@ template <typename T, size_t Align = kSIMDAlign> class AlignedBuffer {
 	}
 	AlignedBuffer &operator=(AlignedBuffer &&o) noexcept {
 		if (this != &o) {
-			std::free(ptr_);
+			release(ptr_);
 			ptr_ = o.ptr_;
 			n_ = o.n_;
 			o.ptr_ = nullptr;
@@ -113,7 +113,7 @@ template <typename T, size_t Align = kSIMDAlign> class AlignedBuffer {
 #endif
 		if (!p)
 			throw std::bad_alloc();
-		std::free(ptr_);
+		release(ptr_);
 		ptr_ = static_cast<T *>(p);
 		n_ = n;
 	}
@@ -123,6 +123,19 @@ template <typename T, size_t Align = kSIMDAlign> class AlignedBuffer {
 	size_t capacity() const noexcept { return n_; }
 
   private:
+	// Free whatever reset() allocated. On Windows the buffer comes from
+	// _aligned_malloc(), which the CRT *requires* to be released with
+	// _aligned_free(): passing it to std::free() walks a misaligned header and
+	// corrupts the heap (STATUS_HEAP_CORRUPTION / 0xc0000374). POSIX buffers
+	// come from posix_memalign(), which std::free() is correct for.
+	static void release(void *p) noexcept {
+#if defined(_WIN32) || defined(_WIN64)
+		_aligned_free(p);
+#else
+		std::free(p);
+#endif
+	}
+
 	T *ptr_ = nullptr;
 	size_t n_ = 0;
 };

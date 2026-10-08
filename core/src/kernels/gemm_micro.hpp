@@ -65,6 +65,51 @@ namespace dracolix::kernels {
 #if DRACOLIX_HAS_TARGET_ATTR
 
 // ---------------------------------------------------------------------------
+// Edge-tile lane masks.
+//
+// The naive form of this is `(1u << n) - 1`, which is *undefined* for n >= 32:
+// on x86 the shift count is taken mod 32, so n == 32 yields 1 - 1 == 0 — an
+// all-zero mask. The lanes are then skipped on both the load and the store, so
+// C silently keeps its previous value for half the tile. That is exactly the
+// f32 AVX-512 failure (NR512_F == 32, partial kernel, nr == 32): 46 shapes
+// wrong on gcc-13 in CI, while gcc-16 happened to produce correct code.
+//
+// Clamp instead of shifting past the width. `lane_mask<L>(n)` returns the low
+// `n` lanes of an L-lane vector, saturating, and never shifts by >= 32.
+//
+// The asserts below are the regression guard: the wrong mask only manifests
+// under *some* codegen, so no runtime test can be relied upon to catch it (the
+// same source passes under gcc-16 -O2 and fails under gcc-13). Checked at
+// compile time, a revert to the naive form breaks the build on every compiler.
+// ---------------------------------------------------------------------------
+template <int L> constexpr unsigned lane_mask(int n) {
+	static_assert(L > 0 && L <= 32,
+				  "lane_mask<L>: L must fit in an unsigned shift");
+	if (n >= L)
+		return (L == 32) ? 0xFFFFFFFFu : ((1u << L) - 1u);
+	if (n <= 0)
+		return 0u;
+	return (1u << n) - 1u;
+}
+
+static_assert(lane_mask<32>(32) == 0xFFFFFFFFu, "lane_mask must saturate");
+static_assert(lane_mask<32>(33) == 0xFFFFFFFFu, "lane_mask must saturate");
+static_assert(lane_mask<32>(31) == 0x7FFFFFFFu, "lane_mask off by one");
+static_assert(lane_mask<16>(16) == 0x0000FFFFu, "lane_mask must saturate");
+static_assert(lane_mask<16>(17) == 0x0000FFFFu, "lane_mask must saturate");
+static_assert(lane_mask<16>(15) == 0x00007FFFu, "lane_mask off by one");
+static_assert(lane_mask<8>(8) == 0xFFu, "lane_mask must saturate");
+static_assert(lane_mask<8>(7) == 0x7Fu, "lane_mask off by one");
+static_assert(lane_mask<8>(9) == 0xFFu, "lane_mask must saturate");
+static_assert(lane_mask<16>(0) == 0u, "lane_mask of no lanes must be 0");
+static_assert(lane_mask<16>(-1) == 0u, "lane_mask of no lanes must be 0");
+
+// The tiles below are all no wider than 32 lanes, which is what keeps
+// lane_mask's remaining shifts below the width of `unsigned`.
+static_assert(DRACOLIX_NR512 <= 32, "f64 AVX-512 tile wider than lane_mask");
+static_assert(DRACOLIX_NR256 <= 32, "f64 AVX2 tile wider than lane_mask");
+
+// ---------------------------------------------------------------------------
 // Full MR x NR tile.
 // ---------------------------------------------------------------------------
 DRACOLIX_TARGET_AVX512
@@ -150,11 +195,9 @@ inline void micro_gemm_512_partial(const double *__restrict Ap, int lda,
 								   int nr) {
 	constexpr int NV = DRACOLIX_NR512 / 8;
 
-	const __mmask8 m0 = (__mmask8)((1u << (nr > 0 ? nr : 0)) - 1u);
-	const __mmask8 m1 =
-		(nr > 8) ? (__mmask8)((1u << (nr - 8)) - 1u) : (__mmask8)0;
-	const __mmask8 m2 =
-		(nr > 16) ? (__mmask8)((1u << (nr - 16)) - 1u) : (__mmask8)0;
+	const __mmask8 m0 = (__mmask8)lane_mask<8>(nr);
+	const __mmask8 m1 = (__mmask8)lane_mask<8>(nr - 8);
+	const __mmask8 m2 = (__mmask8)lane_mask<8>(nr - 16);
 
 	__m512d c[DRACOLIX_MR512][NV] = {};
 #pragma GCC unroll 8
@@ -259,6 +302,12 @@ inline void micro_gemm_256_partial(const double *__restrict Ap, int lda,
 #define DRACOLIX_MR256_F 6
 #define DRACOLIX_NR256_F 16
 
+// lane_mask() covers the shift-width invariant for the edge kernels (see the
+// definition in the f64 section); assert the f32 tile widths too so a future
+// widen is caught at compile time rather than as a silent zero mask.
+static_assert(DRACOLIX_NR512_F <= 32, "f32 AVX-512 tile wider than lane_mask");
+static_assert(DRACOLIX_NR256_F <= 32, "f32 AVX2 tile wider than lane_mask");
+
 DRACOLIX_TARGET_AVX512
 inline void micro_gemm_512_f(const float *__restrict Ap, int lda,
 							 const float *__restrict Bp, int ldb,
@@ -330,9 +379,16 @@ inline void micro_gemm_512_f_partial(const float *__restrict Ap, int lda,
 									 float *__restrict C, int ldc, int k,
 									 int mr, int nr) {
 	constexpr int NV = DRACOLIX_NR512_F / 16;
-	const __mmask16 m0 = (__mmask16)(((1u << nr) - 1u) & 0xFFFFu);
-	const __mmask16 m1 =
-		(nr > 16) ? (__mmask16)((1u << (nr - 16)) - 1u) : (__mmask16)0;
+	// `nr` reaches NR512_F (32) whenever a tile has a whole number of columns
+	// but a row remainder — i.e. whenever this kernel is needed at all for a
+	// "square-ish" remainder. The naive `(1u << nr) - 1` is undefined there:
+	// on x86 the count is taken mod 32, so the mask collapsed to 0 and the
+	// first 16 lanes were dropped on both the load and the store. C kept its
+	// old value for half of every edge column (46 shapes wrong under the
+	// codegen where gcc chose a plain `shl`). lane_mask() clamps instead of
+	// shifting past the width — see its definition above.
+	const __mmask16 m0 = (__mmask16)lane_mask<16>(nr);
+	const __mmask16 m1 = (__mmask16)lane_mask<16>(nr - 16);
 
 	__m512 c[DRACOLIX_MR512_F][NV] = {};
 #pragma GCC unroll 8

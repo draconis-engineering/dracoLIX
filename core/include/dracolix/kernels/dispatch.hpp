@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
+#include <string>
 
 namespace dracolix::kernels {
 
@@ -54,17 +55,51 @@ inline const cpu::Features &gemm_cpu_features() {
 	return f;
 }
 
+namespace detail {
+
 // User override, read exactly once (getenv is a linear scan of environ, and
 // this runs on every GEMM):
 //   DLX_GEMM_BACKEND = scalar | native | avx2 | avx512 | blas
 // Lets the backend benchmark pin a specific path and gives a bisection handle
 // when a result looks wrong.
-inline const char *gemm_backend_override() {
+inline const char *gemm_backend_env() {
 	static const char *e = [] {
 		const char *v = std::getenv("DLX_GEMM_BACKEND");
 		return (v && *v) ? v : "";
 	}();
 	return e;
+}
+
+// Programmatic override, for tests and benchmarks that need to switch backends
+// *inside* one process. Takes precedence over DLX_GEMM_BACKEND.
+//
+// This exists because the env var is read once and cached: a setenv() after the
+// first dispatch is simply ignored. The backend harness used to do exactly
+// that — it set the var per iteration and silently ran the same kernel four
+// times while reporting four, so a failure logged under "scalar" was really the
+// AVX-512 kernel. A cached pointer into environ could also dangle once a
+// subsequent setenv() freed the old value.
+inline std::string &gemm_backend_forced() {
+	static std::string forced;
+	return forced;
+}
+
+} // namespace detail
+
+// Set the backend for subsequent dispatches. Takes precedence over
+// DLX_GEMM_BACKEND; pass nullptr or "" to fall back to the env var /
+// auto-detection. Set it only while no GEMM is in flight (dispatch happens on
+// the calling thread; workers are handed the already-chosen kernel).
+inline void set_gemm_backend_override(const char *name) {
+	auto &f = detail::gemm_backend_forced();
+	f = (name && *name) ? name : "";
+}
+
+inline const char *gemm_backend_override() {
+	const auto &forced = detail::gemm_backend_forced();
+	if (!forced.empty())
+		return forced.c_str();
+	return detail::gemm_backend_env();
 }
 
 inline GEMMBackend gemm_backend() {

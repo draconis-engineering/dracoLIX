@@ -772,6 +772,90 @@ other.
   They are `#define`-overridable but not auto-detected.
 - No bf16 tensor-core path, which is where AVX-512 actually pays off on this
   CPU (`avx512_bf16` and `avx512_vnni` are both present but unused).
-- `gemm_recommended_threads` picks `min(m_panels, nthreads)`; a proper
-  work-stealing or 2-D (MC × NC) decomposition would scale better on machines
-  with more cores than MC-row panels.
+## 24. CI Regression: Three Latent Bugs (2026-10-08)
+
+The 2026-10-08 CI run was red: 5 Windows (msys2/ucrt64) tests died with
+`STATUS_HEAP_CORRUPTION` (0xc0000374), and the Linux `cxx` job failed
+`test_gemm` with 184 f32 mismatches. Three independent latent defects, none of
+which a single failing build points at alone:
+
+| defect | symptom | evidence |
+|---|---|---|
+| f32 AVX-512 mask UB (this is §21.1's bug family) | 46 shapes wrong | 184 = 46 × 4 labels |
+| `_aligned_malloc` freed with `std::free` | heap corruption | only GEMM tests crash |
+| cached `DLX_GEMM_BACKEND` | every "backend" ran one kernel | 4 labels, 1 timing |
+
+### 24.1 `1u << 32` in the f32 AVX-512 edge kernel
+
+`nr == NR512_F == 32` is reached whenever a tile has a whole number of columns
+but a row remainder — i.e. the most common partial case. `(1u << nr) - 1u` is
+*undefined* for `unsigned` at `nr == 32`; on x86 the shift count is taken mod
+32, so the mask collapsed to `1 - 1 == 0` and the first 16 lanes were dropped
+on both load and store. C kept its old value for half of every edge column.
+
+Why it took two days to find: the failure is **codegen-dependent**. gcc-13 at
+`-O3` emitted a plain `shl` (broken values); gcc-16 at `-O3` folded it into
+the correct implementation, and everything passed locally. Only the
+`-fsanitize=undefined` build called it out (`runtime error: shift exponent 32
+is too large for 32-bit type 'unsigned int'`) — a quiet wrong-answer bug on
+every compiler where codegen happens to be right.
+
+Fix: all edge masks now go through one `lane_mask<L>(n)` helper that clamps
+instead of shifting past the width, with `static_assert`s pinning the contract
+at compile time. This matters: because the bad mask only manifests under some
+codegen, no runtime test can reliably catch a regression — the same source
+passes under gcc-16 `-O2` and fails under gcc-13. The compile-time asserts
+break the build on every compiler instead. A re-introduced naive form fails
+the build immediately:
+
+```
+error: right operand of shift expression '(1 << 32)' is greater than or equal
+to the precision 32 of the left operand [-fpermissive]
+error: static assertion failed: lane_mask must saturate
+```
+
+### 24.2 `_aligned_malloc` / `std::free` mismatch
+
+`AlignedBuffer` (packing scratch) allocated with `_aligned_malloc()` on Windows
+but always freed with `std::free()`. The CRT requires `_aligned_free()` for
+that pointer — `std::free()` walks a misaligned header and corrupts the heap
+(`0xc0000374`). Every test that performed a dense GEMM crashed
+(`test_linalg`, `test_decomp`, `test_eigen_svd`, `test_gemm`, `bench_core`);
+tests that never touched GEMM scratch passed. Fixed with a platform-aware
+`release()` (`_aligned_free` on Windows, `std::free` on POSIX).
+
+### 24.3 The backend override was read once and cached
+
+`gemm_backend_override()` cached `getenv("DLX_GEMM_BACKEND")` in a
+function-local `static` — read at the *first* dispatch, before the harness's
+per-iteration `setenv()`. The 4-backend matrix therefore ran a single kernel
+under four names. That explains the exact failure count: 184 f32 mismatches =
+46 bad shapes × 4 mislabeled "backends". After the harness fix the same buggy
+kernel produced 92 = 46 × 2, correctly attributed to `native` + `avx512`
+only, with `avx2` and `scalar` genuinely green.
+
+Fix: `set_gemm_backend_override()` — a programmatic, re-readable override that
+tests and benchmarks use instead of mutating the environment (which also had a
+dangling-pointer hazard: the cached pointer into `environ` can be freed or
+overwritten by a later `setenv`). The test now *proves* each backend selected
+the intended kernel and fails loudly on any slippage.
+
+### 24.4 The benchmark harness had the same defect
+
+The backend table in §20/§21 was measured while a similar caching defect could
+pin every dispatch to one kernel (the "scalar" row bypasses dispatch entirely,
+so the first dispatch happened under "native", and `setenv` after that was
+ignored or read freed memory). Corrected 4000³ sweep (12 threads, Ryzen 5 7600):
+
+| dtype | backend | GFLOP/s | vs scalar |
+|---|---:|---:|---:|
+| f64 | scalar | 6.6 | 1× |
+| f64 | avx2 | 277 | 42× |
+| f64 | native/avx512 | 345 | 52× |
+| f32 | scalar | 16.3 | 1× |
+| f32 | avx2 | 640 | 39× |
+| f32 | native/avx512 | 715 | 44× |
+
+Each row now measures a genuinely distinct kernel — avx2 is consistently ~20 %
+below AVX-512, which the old harness could not have shown. The §20 claim of
+~337 GFLOP/s for the threaded AVX-512 path still holds (344 fresh).

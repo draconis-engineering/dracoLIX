@@ -165,14 +165,11 @@ int main(int argc, char **argv) {
 		for (const char *dt : {"f64", "f32"}) {
 			double scalar_gf = 0;
 			for (const auto &be : backends) {
-				// Pick the backend through the documented env override.
-#ifdef _WIN32
-				_putenv_s("DLX_GEMM_BACKEND",
-						  be == "openblas" ? "blas" : be.c_str());
-#else
-				setenv("DLX_GEMM_BACKEND",
-					   be == "openblas" ? "blas" : be.c_str(), 1);
-#endif
+				// Pick the backend through the programmatic override: the env
+				// var is read once and cached, so setenv() per iteration here
+				// would silently benchmark one kernel under every name.
+				kernels::set_gemm_backend_override(be == "openblas" ? "blas"
+																	: be.c_str());
 				const Row r = (std::strcmp(dt, "f64") == 0)
 								  ? measure<double>(be, dt, n, A64, B64)
 								  : measure<float>(be, dt, n, A32, B32);
@@ -187,11 +184,7 @@ int main(int argc, char **argv) {
 							rel);
 				rows.push_back(r);
 			}
-#ifdef _WIN32
-			_putenv("DLX_GEMM_BACKEND=");
-#else
-			unsetenv("DLX_GEMM_BACKEND");
-#endif
+			kernels::set_gemm_backend_override(nullptr);
 			std::printf("\n");
 		}
 	}
