@@ -123,6 +123,3 @@ endif()
 if(NOT SKBUILD)
 	add_subdirectory(benchmarks)
 endif()
-
-add_executable(debug_gemm debug_gemm.cpp)
-target_link_libraries(debug_gemm PRIVATE dracolix_core)
