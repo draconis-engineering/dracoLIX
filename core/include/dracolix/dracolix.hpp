@@ -21,5 +21,5 @@
 #include "thread_pool.hpp"
 
 namespace dracolix {
-constexpr const char *version = "0.2.5-rc1";
+constexpr const char *version = "0.2.7";
 }
