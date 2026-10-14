@@ -4,7 +4,9 @@
 
 echo "Building testing executables..."
 
-# Add your compilation command here if needed (e.g., make, g++, etc.)
+cd "C:/Prosjekter/dracolix/testing/executables" || exit 1
+
+make
 
 echo "Done"
 
