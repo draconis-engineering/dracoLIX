@@ -168,8 +168,8 @@ int main(int argc, char **argv) {
 				// Pick the backend through the programmatic override: the env
 				// var is read once and cached, so setenv() per iteration here
 				// would silently benchmark one kernel under every name.
-				kernels::set_gemm_backend_override(be == "openblas" ? "blas"
-																	: be.c_str());
+				kernels::set_gemm_backend_override(
+					be == "openblas" ? "blas" : be.c_str());
 				const Row r = (std::strcmp(dt, "f64") == 0)
 								  ? measure<double>(be, dt, n, A64, B64)
 								  : measure<float>(be, dt, n, A32, B32);
