@@ -18,12 +18,12 @@ A Fortran → BLAS control benchmark demonstrated that the same machine can sust
 
 The original benchmark compared NumPy against DracoLIX for square `float64` GEMM.
 
-| Matrix size | NumPy | DracoLIX | DracoLIX slowdown |
-|---|---:|---:|---:|
-| 1000×1000 | 0.0084 s | 0.1018 s | ~12× |
-| 2000×2000 | 0.0472 s | 1.1438 s | ~24× |
-| 3000×3000 | 0.1496 s | 5.8077 s | ~39× |
-| 4000×4000 | 0.4111 s | 13.6786 s | ~33× |
+| Matrix size |    NumPy |  DracoLIX | DracoLIX slowdown |
+| ----------- | -------: | --------: | ----------------: |
+| 1000×1000   | 0.0084 s |  0.1018 s |              ~12× |
+| 2000×2000   | 0.0472 s |  1.1438 s |              ~24× |
+| 3000×3000   | 0.1496 s |  5.8077 s |              ~39× |
+| 4000×4000   | 0.4111 s | 13.6786 s |              ~33× |
 
 A later run with matrix dimensions of 4000x4000 produced approximately:
 
@@ -64,8 +64,8 @@ The call graph was even more useful.
 
 The important result was approximately:
 
-- ~75%  dracolix::kernels::dispatch_gemm_f64(...)
-- ~21%  libc / related execution
+- ~75% dracolix::kernels::dispatch_gemm_f64(...)
+- ~21% libc / related execution
 
 OpenBLAS showed up separately for NumPy's GEMM path. This established that the DracoLIX GEMM path itself dominates the runtime. NumPy, meanwhile, was using a heavily optimized and multithreaded OpenBLAS GEMM implementation.
 
@@ -359,6 +359,7 @@ for k:
 
 store C tile
 ```
+
 The C tile remains in registers throughout the inner k loop.
 
 Potential starting points:
@@ -380,9 +381,9 @@ Introduce tiling around the microkernel.
 Conceptually:
 
 for M block
-    for N block
-        for K block
-            run microkernels
+for N block
+for K block
+run microkernels
 
 The goal is to keep working sets inside the appropriate cache levels.
 
@@ -511,6 +512,7 @@ This will let us distinguish single-thread kernel performance from parallel scal
 ## 14. Current Findings Summary
 
 ### Confirmed
+
 - DracoLIX's native GEMM is the main performance bottleneck.
 - Python overhead is not the primary issue.
 - NumPy is using optimized OpenBLAS GEMM.
@@ -523,6 +525,7 @@ This will let us distinguish single-thread kernel performance from parallel scal
 - CUDA/ROCm can fit naturally into a future backend architecture.
 
 ### Not yet established
+
 - Exact single-thread OpenBLAS performance on this machine.
 - Optimal DracoLIX cache-block sizes.
 - Optimal AVX2 microkernel dimensions.
@@ -566,6 +569,7 @@ This preserves:
 Most importantly, it means DracoLIX does not have to become dependent on Fortran just because OpenBLAS currently provides a much faster GEMM.
 
 ## 16. Immediate Next Steps
+
 - Keep the scalar GEMM as the reference implementation.
 - Implement a proper AVX2 register-blocked microkernel.
 - Add cache blocking.
@@ -606,14 +610,14 @@ entire k loop, so the inner loop only issues a broadcast, a B load and an FMA.
 
 Measured microkernel shapes on this CPU (AMD Ryzen 5 7600, Zen 4):
 
-| shape | GFLOP/s |
-|---|---:|
-| AVX2 4×4 | 8.0 |
-| AVX2 4×12 | 27.4 |
-| AVX2 6×8 | 27.6 |
-| AVX-512 4×16 | 32.3 |
-| AVX-512 8×16 | 62.6 |
-| AVX-512 8×24 | 70.6 |
+| shape        | GFLOP/s |
+| ------------ | ------: |
+| AVX2 4×4     |     8.0 |
+| AVX2 4×12    |    27.4 |
+| AVX2 6×8     |    27.6 |
+| AVX-512 4×16 |    32.3 |
+| AVX-512 8×16 |    62.6 |
+| AVX-512 8×24 |    70.6 |
 
 Zen 4 executes 512-bit FMA as two 256-bit ops, so AVX-512 doubles FLOP/cycle
 over AVX2 rather than quadrupling it — which is why the AVX2 ceiling tops out
@@ -625,7 +629,7 @@ Chosen: **AVX-512 8×24** (24 accumulators + 3 B vectors = 27 of 32 zmm) and
 ### 17.2 Threading was hard-disabled
 
 `if (false && ops >= ...)` in both dispatchers. That gate was left in from the
-Phase 3 experiment where threading *regressed* mid-size GEMM — because it was
+Phase 3 experiment where threading _regressed_ mid-size GEMM — because it was
 row-parallel with no blocking, so each thread re-read the whole B panel and
 cache locality collapsed.
 
@@ -677,20 +681,20 @@ the test genuinely covers it.
 4000×4000 × 4000×4000, f64, all bit-exact against the scalar reference
 (`max|err| = 0`):
 
-| backend | time | GFLOP/s | vs old |
-|---|---:|---:|---:|
-| scalar (old default path) | 19648 ms | 6.5 | 1× |
-| DracoLIX AVX-512 blocked+threaded | 380 ms | **337** | **52×** |
-| OpenBLAS (12 threads, reference) | 384 ms | 384 | 59× |
-| NumPy (from Part 1) | 335 ms | 383 | 59× |
+| backend                           |     time | GFLOP/s |  vs old |
+| --------------------------------- | -------: | ------: | ------: |
+| scalar (old default path)         | 19648 ms |     6.5 |      1× |
+| DracoLIX AVX-512 blocked+threaded |   380 ms | **337** | **52×** |
+| OpenBLAS (12 threads, reference)  |   384 ms |     384 |     59× |
+| NumPy (from Part 1)               |   335 ms |     383 |     59× |
 
 Single-thread, `taskset -c 0`, for a like-for-like kernel comparison:
 
-| | GFLOP/s |
-|---|---:|
-| OpenBLAS 1024³ | 60.2 |
-| OpenBLAS 2048³ | 69.7 |
-| DracoLIX 512² | 114–132 |
+|                | GFLOP/s |
+| -------------- | ------: |
+| OpenBLAS 1024³ |    60.2 |
+| OpenBLAS 2048³ |    69.7 |
+| DracoLIX 512²  | 114–132 |
 
 DracoLIX's blocked microkernel is at or above OpenBLAS single-thread, and the
 threaded path reaches ~88 % of 12-thread OpenBLAS. That gap is mostly memory
@@ -701,16 +705,16 @@ scheduling, and a bf16/`sgemm` path.
 ## 21. f32: the second silent gap
 
 Section 22 of Part 1 flagged that f32 has no vectorized path. Adding it
-exposed the fact that the *blocked macro-kernel* was written for `double` only,
+exposed the fact that the _blocked macro-kernel_ was written for `double` only,
 so f32 could not simply borrow it.
 
 The blocked kernel is now templated on the scalar type, with a `Micro<T>` traits
 table supplying the tile shape and kernel per (dtype, ISA):
 
-| dtype | AVX-512 | AVX2 |
-|---|---|---|
-| f64 | 8 × 24 | 6 × 8 |
-| f32 | 8 × 32 | 6 × 16 |
+| dtype | AVX-512 | AVX2   |
+| ----- | ------- | ------ |
+| f64   | 8 × 24  | 6 × 8  |
+| f32   | 8 × 32  | 6 × 16 |
 
 Packing, cache blocking and the row-panel threading are shared verbatim, and
 the per-worker scratch is a single `AlignedBuffer<char>` serving both dtypes, so
@@ -718,11 +722,11 @@ an f32 GEMM does not allocate a second pool.
 
 f32 at n=1024, 12 threads:
 
-| backend | GFLOP/s | vs scalar |
-|---|---:|---:|
-| scalar | 29.6 | 1× |
-| native (AVX-512) | **449** | **15×** |
-| avx2 | 414 | 14× |
+| backend          | GFLOP/s | vs scalar |
+| ---------------- | ------: | --------: |
+| scalar           |    29.6 |        1× |
+| native (AVX-512) | **449** |   **15×** |
+| avx2             |     414 |       14× |
 
 ### 21.1 A third mask bug, in the f32 AVX-512 edge kernel
 
@@ -772,6 +776,7 @@ other.
   They are `#define`-overridable but not auto-detected.
 - No bf16 tensor-core path, which is where AVX-512 actually pays off on this
   CPU (`avx512_bf16` and `avx512_vnni` are both present but unused).
+
 ## 24. CI Regression: Three Latent Bugs (2026-10-08)
 
 The 2026-10-08 CI run was red: 5 Windows (msys2/ucrt64) tests died with
@@ -779,17 +784,17 @@ The 2026-10-08 CI run was red: 5 Windows (msys2/ucrt64) tests died with
 `test_gemm` with 184 f32 mismatches. Three independent latent defects, none of
 which a single failing build points at alone:
 
-| defect | symptom | evidence |
-|---|---|---|
-| f32 AVX-512 mask UB (this is §21.1's bug family) | 46 shapes wrong | 184 = 46 × 4 labels |
-| `_aligned_malloc` freed with `std::free` | heap corruption | only GEMM tests crash |
-| cached `DLX_GEMM_BACKEND` | every "backend" ran one kernel | 4 labels, 1 timing |
+| defect                                           | symptom                        | evidence              |
+| ------------------------------------------------ | ------------------------------ | --------------------- |
+| f32 AVX-512 mask UB (this is §21.1's bug family) | 46 shapes wrong                | 184 = 46 × 4 labels   |
+| `_aligned_malloc` freed with `std::free`         | heap corruption                | only GEMM tests crash |
+| cached `DLX_GEMM_BACKEND`                        | every "backend" ran one kernel | 4 labels, 1 timing    |
 
 ### 24.1 `1u << 32` in the f32 AVX-512 edge kernel
 
 `nr == NR512_F == 32` is reached whenever a tile has a whole number of columns
 but a row remainder — i.e. the most common partial case. `(1u << nr) - 1u` is
-*undefined* for `unsigned` at `nr == 32`; on x86 the shift count is taken mod
+_undefined_ for `unsigned` at `nr == 32`; on x86 the shift count is taken mod
 32, so the mask collapsed to `1 - 1 == 0` and the first 16 lanes were dropped
 on both load and store. C kept its old value for half of every edge column.
 
@@ -827,7 +832,7 @@ tests that never touched GEMM scratch passed. Fixed with a platform-aware
 ### 24.3 The backend override was read once and cached
 
 `gemm_backend_override()` cached `getenv("DLX_GEMM_BACKEND")` in a
-function-local `static` — read at the *first* dispatch, before the harness's
+function-local `static` — read at the _first_ dispatch, before the harness's
 per-iteration `setenv()`. The 4-backend matrix therefore ran a single kernel
 under four names. That explains the exact failure count: 184 f32 mismatches =
 46 bad shapes × 4 mislabeled "backends". After the harness fix the same buggy
@@ -837,7 +842,7 @@ only, with `avx2` and `scalar` genuinely green.
 Fix: `set_gemm_backend_override()` — a programmatic, re-readable override that
 tests and benchmarks use instead of mutating the environment (which also had a
 dangling-pointer hazard: the cached pointer into `environ` can be freed or
-overwritten by a later `setenv`). The test now *proves* each backend selected
+overwritten by a later `setenv`). The test now _proves_ each backend selected
 the intended kernel and fails loudly on any slippage.
 
 ### 24.4 The benchmark harness had the same defect
@@ -847,14 +852,14 @@ pin every dispatch to one kernel (the "scalar" row bypasses dispatch entirely,
 so the first dispatch happened under "native", and `setenv` after that was
 ignored or read freed memory). Corrected 4000³ sweep (12 threads, Ryzen 5 7600):
 
-| dtype | backend | GFLOP/s | vs scalar |
-|---|---:|---:|---:|
-| f64 | scalar | 6.6 | 1× |
-| f64 | avx2 | 277 | 42× |
-| f64 | native/avx512 | 345 | 52× |
-| f32 | scalar | 16.3 | 1× |
-| f32 | avx2 | 640 | 39× |
-| f32 | native/avx512 | 715 | 44× |
+| dtype |       backend | GFLOP/s | vs scalar |
+| ----- | ------------: | ------: | --------: |
+| f64   |        scalar |     6.6 |        1× |
+| f64   |          avx2 |     277 |       42× |
+| f64   | native/avx512 |     345 |       52× |
+| f32   |        scalar |    16.3 |        1× |
+| f32   |          avx2 |     640 |       39× |
+| f32   | native/avx512 |     715 |       44× |
 
 Each row now measures a genuinely distinct kernel — avx2 is consistently ~20 %
 below AVX-512, which the old harness could not have shown. The §20 claim of
