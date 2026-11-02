@@ -26,6 +26,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Topic :: Scientific/Engineering :: Mathematics",
     "Typing :: Typed",
 ]
@@ -44,10 +45,13 @@ dev = ["pytest", "numpy>=2.2.6"]
 [tool.cibuildwheel]
 # Pure C++ core, no Fortran needed for the wheels (DRACOLIX_USE_FORTRAN=OFF by
 # default). Build every supported CPython on the three major platforms.
-build = "cp310-* cp311-* cp312-* cp313-* cp314-*"
-test-command = "python -m pytest {project}/tests/test_python.py -q"
+build = "cp310-* cp311-* cp312-* cp313-* cp314-* cp315-*"
+test-command = "python -m pytest {project}/tests -q"
 test-requires = ["pytest", "numpy"]
-skip = "*-musllinux_*"
+# Skip musl and 32-bit, and the free-threaded (t) ABI for now: DracoLIX has not
+# been validated against a GIL-disabled interpreter, so do not publish cp31?t
+# wheels yet (cibuildwheel >= 3.1 builds them by default on 3.14+).
+skip = "*-musllinux_* *_i686 *win32 cp31?t-*"
 
 [tool.cibuildwheel.linux]
 # NumPy 2.5+ only ships manylinux_2_28 wheels; the default manylinux2014

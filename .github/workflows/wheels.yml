@@ -36,11 +36,11 @@ jobs:
           python-version: "3.12"
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.22.0
+        uses: pypa/cibuildwheel@v4.3.5
         env:
           CIBW_ARCHS: auto
-          # Skips 32-bit Linux and 32-bit Windows builds
-          CIBW_SKIP: "*_i686 *win32"
+          # Platform/build skips live in pyproject.toml [tool.cibuildwheel].
+          # (CIBW_SKIP here would override that list.)
 
       - uses: actions/upload-artifact@v4
         with:

@@ -115,20 +115,21 @@ Python bindings are implemented directly against the DracoLIX core rather than r
 ```python
 import dracolix as dlx
 
-A = dlx.matrix(
-    [[1.0, 2.0],
-     [3.0, 4.0]],
-    dtype=dlx.f64
-)
-
-B = dlx.matrix(
-    [[5.0, 6.0],
-     [7.0, 8.0]],
-    dtype=dlx.f64
-)
+A = dlx.array([[1.0, 2.0], [3.0, 4.0]], dtype=dlx.f64)
+B = dlx.array([[5.0, 6.0], [7.0, 8.0]], dtype=dlx.f64)
 
 C = A @ B
 ```
+
+Currently available from Python:
+
+- Arrays: `array`, `asarray`, `zeros`, `ones`, `empty`, `full`, `arange`
+- Linear algebra: `matmul`, `matvec`, `dot`, `norm`, `diagonal`, `diag`
+- Decompositions / solvers: `lu`, `solve`, `inv`, `det`, `rank`, `qr`,
+  `cholesky`, `eig`, `svd`
+- Sparse: `CsrMatrix`, `CscMatrix`, `cg_solve`, and `matrix.solve(b)`
+
+Supported on CPython 3.10–3.15.
 
 ### Julia
 

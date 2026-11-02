@@ -16,6 +16,17 @@ find_package(nanobind CONFIG REQUIRED)
 nanobind_add_module(_dracolix_nb src/dracolix_nb.cpp)
 target_link_libraries(_dracolix_nb PRIVATE dracolix_core)
 
+# Single-source the Python-visible version: under a wheel build use the version
+# scikit-build-core read from pyproject.toml, otherwise the CMake project
+# version. Keeps dracolix.__version__ in lockstep with the distribution.
+if(DEFINED SKBUILD_PROJECT_VERSION)
+    set(DRACOLIX_PY_VERSION "${SKBUILD_PROJECT_VERSION}")
+else()
+    set(DRACOLIX_PY_VERSION "${PROJECT_VERSION}")
+endif()
+target_compile_definitions(_dracolix_nb PRIVATE
+    DRACOLIX_PY_VERSION="${DRACOLIX_PY_VERSION}")
+
 if(MSVC)
     # The core headers are shared with the pure-C++ build where these warnings
     # are treated as errors on GCC/Clang; silence size/ptr-noise for the bindings.

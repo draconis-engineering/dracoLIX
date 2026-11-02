@@ -82,20 +82,24 @@ jobs:
         run: ctest --test-dir build-ftn --output-on-failure
 
   python:
-    name: python (ubuntu)
+    name: python (${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.14", "3.15"]
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install build deps
-        run: python -m pip install --upgrade pip pytest setuptools scikit-build-core nanobind
+        run: python -m pip install --upgrade pip pytest scikit-build-core nanobind numpy
 
       - name: Build and install the Python binding
         run: python -m pip install . --no-build-isolation -v
 
       - name: Run the Python test suite
-        run: python -m pytest tests/test_python.py -q
+        run: python -m pytest tests/ -q

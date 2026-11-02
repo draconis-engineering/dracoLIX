@@ -12,6 +12,12 @@
 
 #include "dracolix/dracolix.hpp"
 
+// Injected by bindings/python/CMakeLists.txt from the distribution version
+// (pyproject.toml under scikit-build-core, or the CMake project version).
+#ifndef DRACOLIX_PY_VERSION
+#define DRACOLIX_PY_VERSION "0.0.0"
+#endif
+
 #include <Python.h>
 
 #include <algorithm>
@@ -2341,7 +2347,7 @@ NB_MODULE(_dracolix_nb, m) {
   m.doc() = "DracoLIX - a scientific computing runtime with a zero-NumPy "
             "Python API (interoperates via the PEP 3118 buffer protocol).";
 
-  m.attr("__version__") = "0.2.0";
+  m.attr("__version__") = DRACOLIX_PY_VERSION;
 
   nb::class_<DlxDType>(m, "DType")
       .def("__eq__",
