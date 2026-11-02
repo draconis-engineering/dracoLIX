@@ -6,7 +6,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-## [0.2.7] - 2026-11-02
+## [0.2.8] - 2026-11-02
 
 ### Added
 
@@ -32,5 +32,5 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - CI: Python jobs build/test on 3.12, 3.14, and 3.15, and the wheel test
   command now runs the full test suite.
 
-[Unreleased]: https://github.com/draconis-engineering/dracolix/compare/v0.2.7...HEAD
-[0.2.7]: https://github.com/draconis-engineering/dracolix/releases/tag/v0.2.7
+[Unreleased]: https://github.com/draconis-engineering/dracolix/compare/v0.2.8...HEAD
+[0.2.8]: https://github.com/draconis-engineering/dracolix/releases/tag/v0.2.8
