@@ -1,4 +1,4 @@
-"""Type stubs for the DracoLIX Python API (generated alongside the extension)."""
+﻿"""Type stubs for the DracoLIX Python API (generated alongside the extension)."""
 
 from collections.abc import Sequence
 from typing import Any, TypeAlias, overload
@@ -8,7 +8,8 @@ from typing import Any, TypeAlias, overload
 # --------------------------------------------------------------------------
 class DType:
     """A DracoLIX data type. Instances are the module singletons
-    ``dlx.f32``, ``dlx.f64``, ``dlx.i32``, ``dlx.i64``, ``dlx.bool_``."""
+    ``dlx.f32``, ``dlx.f64``, ``dlx.i32``, ``dlx.i64``, ``dlx.c64``,
+    ``dlx.c128``, ``dlx.bool_``."""
 
     name: str
     def __eq__(self, other: object) -> bool: ...
@@ -19,9 +20,13 @@ f32: DType
 f64: DType
 i32: DType
 i64: DType
+c64: DType  # complex64: two float32 components
+c128: DType  # complex128: two float64 components
 bool_: DType
 
-Scalar: TypeAlias = bool | int | float
+Scalar: TypeAlias = bool | int | float | complex
+# ``complex`` (the builtin type) is accepted as an alias for ``c128``.
+DTypeLike: TypeAlias = DType | type[complex]
 
 # --------------------------------------------------------------------------
 # Array
@@ -33,11 +38,19 @@ class Array:
       * bool and integer mix -> the integer type (i64 if either side is i64,
         otherwise i32); ``True`` behaves as ``1``.
       * any int/float mix -> float (f64 if either side is f64 or i64, else f32).
+      * any complex mix -> c64, widening to c128 when combined with f64, i64,
+        or another c128 operand (NumPy-compatible).
       * ``/`` (true division) always returns f64 (or f32 when both sides are
-        f32); integer division therefore returns floats, like NumPy.
+        f32); integer division therefore returns floats, like NumPy. Complex
+        operands keep their promoted complex dtype.
 
     Bool arrays are promoted to i32 before arithmetic (``True`` == ``1``);
     comparisons always return bool arrays. ``@`` (matmul) rejects bool arrays.
+
+    Complex notes: ``min``/``max`` (and their ``axis`` forms) are undefined
+    because complex numbers have no ordering; ``mean`` returns a complex scalar
+    and ``norm`` uses the modulus. ``eig``/``svd`` and sparse matrices do not
+    support complex yet.
     """
 
     dtype: DType
@@ -74,7 +87,7 @@ class Array:
     @overload
     def max(self, axis: int) -> Array: ...
     @overload
-    def mean(self) -> float: ...
+    def mean(self) -> Scalar: ...
     @overload
     def mean(self, axis: int) -> Array: ...
 
@@ -94,7 +107,7 @@ class Array:
 
     # methods
     def copy(self) -> Array: ...
-    def astype(self, dtype: DType) -> Array: ...
+    def astype(self, dtype: DTypeLike) -> Array: ...
     def reshape(self, shape: int | Sequence[int]) -> Array: ...
     def transpose(self) -> Array: ...
     def tolist(self) -> Any: ...
@@ -102,28 +115,28 @@ class Array:
 # --------------------------------------------------------------------------
 # Constructors
 # --------------------------------------------------------------------------
-def array(data: Array | Sequence[Scalar] | Any, dtype: DType | None = None) -> Array:
+def array(data: Array | Sequence[Scalar] | Any, dtype: DTypeLike | None = None) -> Array:
     """Create an array, always copying input data.
 
-    ``dtype`` defaults to f64 (any float), i64 (all ints), or bool (all bools).
+    ``dtype`` defaults to c128 (any complex), f64 (any float), i64 (all ints), or bool (all bools). The builtin ``complex`` type is accepted as an alias for c128.
     Accepts lists/tuples, buffer objects (memoryview, bytes, numpy arrays via
     the buffer protocol), and existing dracolix arrays.
     """
 
-def asarray(data: Array | Sequence[Scalar] | Any, dtype: DType | None = None) -> Array:
+def asarray(data: Array | Sequence[Scalar] | Any, dtype: DTypeLike | None = None) -> Array:
     """Like ``array()`` but does not copy an existing dracolix Array."""
 
-def zeros(shape: int | Sequence[int], dtype: DType | None = None) -> Array:
+def zeros(shape: int | Sequence[int], dtype: DTypeLike | None = None) -> Array:
     """Zero-filled array; default dtype is f64."""
 
-def ones(shape: int | Sequence[int], dtype: DType | None = None) -> Array:
+def ones(shape: int | Sequence[int], dtype: DTypeLike | None = None) -> Array:
     """One-filled array; default dtype is f64."""
 
-def empty(shape: int | Sequence[int], dtype: DType | None = None) -> Array:
+def empty(shape: int | Sequence[int], dtype: DTypeLike | None = None) -> Array:
     """Uninitialized-memory array (currently == zeros, the core zero-fills)."""
 
 def full(
-    shape: int | Sequence[int], fill_value: Scalar, dtype: DType | None = None
+    shape: int | Sequence[int], fill_value: Scalar, dtype: DTypeLike | None = None
 ) -> Array:
     """Array filled with ``fill_value``. dtype defaults from the fill value."""
 
@@ -257,10 +270,10 @@ def inv(A: Array) -> Array:
 def inverse(A: Array) -> Array:
     """Alias of :func:`inv`."""
 
-def det(A: Array) -> float:
+def det(A: Array) -> Scalar:
     """Determinant of a square matrix."""
 
-def determinant(A: Array) -> float:
+def determinant(A: Array) -> Scalar:
     """Alias of :func:`det`."""
 
 def rank(A: Array, tol: float = 1e-9) -> int:
@@ -268,21 +281,25 @@ def rank(A: Array, tol: float = 1e-9) -> int:
 
 def qr(A: Array) -> tuple[Array, Array]:
     """Reduced QR (Modified Gram-Schmidt): ``A m x n (m>=n) -> (Q m x n, R n x n)``
-    with ``Q`` orthonormal and ``A == Q @ R``."""
+    with ``Q`` orthonormal and ``A == Q @ R``. For complex input the inner products use the conjugate (unitary Q)."""
 
 def cholesky(A: Array) -> Array:
-    """Lower-triangular Cholesky factor ``L`` with ``A == L @ L.T`` for
-    symmetric positive-definite ``A``."""
+    """Lower-triangular Cholesky factor ``L`` with ``A == L @ L.T`` for real
+    symmetric, and ``A == L @ L.H`` for complex Hermitian, positive-definite
+    ``A``."""
 
 def eig(A: Array) -> tuple[Array, Array]:
     """Symmetric eigendecomposition (Jacobi): ``(values, vectors)`` with
-    orthonormal columns. Requires float input (f32 is promoted to f64);
-    returns f64 arrays."""
+    orthonormal columns. Requires real float input (f32 is promoted to f64);
+    complex input raises ``TypeError``. Returns f64 arrays."""
 
 def svd(A: Array) -> tuple[Array, Array, Array]:
     """SVD via ``A^T A`` eigens: ``(U, S, Vt)``, ``A == U @ diag(S) @ Vt``.
-    Requires float input (f32 promoted to f64); returns f64 arrays."""
+    Requires real float input (f32 promoted to f64); complex input raises
+    ``TypeError``. Returns f64 arrays."""
 
 def cg_solve(A: CsrMatrix, b: Array | Sequence[Scalar] | Any) -> Array:
     """Conjugate-gradient solver for ``A x = b`` on a sparse square SPD CSR
     matrix. See :meth:`CsrMatrix.solve`."""
+
+

@@ -38,9 +38,9 @@ template <typename T> LuResult<T> lu(const Array<T> &A) {
 	for (size_t k = 0; k < n; ++k) {
 		// pivot: max |U[i,k]| for i>=k
 		size_t piv = k;
-		double maxv = std::abs((double)U.at(k, k));
+		double maxv = static_cast<double>(std::abs(U.at(k, k)));
 		for (size_t i = k + 1; i < n; ++i) {
-			double v = std::abs((double)U.at(i, k));
+			double v = static_cast<double>(std::abs(U.at(i, k)));
 			if (v > maxv) {
 				maxv = v;
 				piv = i;
@@ -180,7 +180,7 @@ template <typename T> size_t rank(const Array<T> &A, double tol = 1e-9) {
 	auto f = lu(A);
 	size_t r = 0;
 	for (size_t i = 0; i < A.shape()[0]; ++i)
-		if (std::abs((double)f.U.at(i, i)) > tol)
+		if (std::abs(f.U.at(i, i)) > tol)
 			++r;
 	return r;
 }
@@ -213,15 +213,17 @@ template <typename T> QrResult<T> qr(const Array<T> &A) {
 		for (size_t i = 0; i < j; ++i) {
 			T dot = T{};
 			for (size_t k = 0; k < m; ++k)
-				dot += Q.at(k, i) * Q.at(k, j);
+				dot += conj_if_complex(Q.at(k, i)) * Q.at(k, j);
 			R.at(i, j) = dot;
 			for (size_t k = 0; k < m; ++k)
 				Q.at(k, j) -= dot * Q.at(k, i);
 		}
 		// normalize
 		double norm = 0;
-		for (size_t k = 0; k < m; ++k)
-			norm += (double)Q.at(k, j) * (double)Q.at(k, j);
+		for (size_t k = 0; k < m; ++k) {
+			double mag = static_cast<double>(std::abs(Q.at(k, j)));
+			norm += mag * mag;
+		}
 		norm = std::sqrt(norm);
 		if (norm < 1e-12)
 			throw std::runtime_error("qr: rank-deficient column");
@@ -248,11 +250,16 @@ template <typename T> Array<T> cholesky(const Array<T> &A) {
 		for (size_t j = 0; j <= i; ++j) {
 			T sum = A.at(i, j);
 			for (size_t k = 0; k < j; ++k)
-				sum -= L.at(i, k) * L.at(j, k);
+				sum -= L.at(i, k) * conj_if_complex(L.at(j, k));
 			if (i == j) {
-				if ((double)sum <= 0)
+				double d;
+				if constexpr (is_complex_v<T>)
+					d = static_cast<double>(sum.real());
+				else
+					d = (double)sum;
+				if (d <= 0)
 					throw std::runtime_error("cholesky: not positive-definite");
-				L.at(i, j) = static_cast<T>(std::sqrt((double)sum));
+				L.at(i, j) = static_cast<T>(std::sqrt(d));
 			} else {
 				L.at(i, j) = sum / L.at(j, j);
 			}
@@ -295,16 +302,16 @@ Array<T> solve_cholesky(const Array<T> &L, const Array<T> &b) {
 		for (int i = (int)n - 1; i >= 0; --i) {
 			T acc = y[i];
 			for (size_t k = i + 1; k < n; ++k)
-				acc -= L.at(k, i) * x[k];
-			x[i] = acc / L.at(i, i);
+				acc -= conj_if_complex(L.at(k, i)) * x[k];
+			x[i] = acc / conj_if_complex(L.at(i, i));
 		}
 	} else {
 		for (size_t j = 0; j < nrhs; ++j)
 			for (int i = (int)n - 1; i >= 0; --i) {
 				T acc = y.at(i, j);
 				for (size_t k = i + 1; k < n; ++k)
-					acc -= L.at(k, i) * x.at(k, j);
-				x.at(i, j) = acc / L.at(i, i);
+					acc -= conj_if_complex(L.at(k, i)) * x.at(k, j);
+				x.at(i, j) = acc / conj_if_complex(L.at(i, i));
 			}
 	}
 	return x;

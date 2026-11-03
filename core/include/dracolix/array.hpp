@@ -275,8 +275,15 @@ template <typename T> class Array {
 	// ---- Type conversion ----
 	template <typename U> Array<U> astype() const {
 		Array<U> out(shape_);
-		for (size_t i = 0; i < size_; ++i)
-			out[i] = static_cast<U>(data_[i]);
+		for (size_t i = 0; i < size_; ++i) {
+			if constexpr (is_complex_v<T> && !is_complex_v<U>) {
+				// Complex -> real/integer discards the imaginary part, like
+				// NumPy's astype (which warns).
+				out[i] = static_cast<U>(data_[i].real());
+			} else {
+				out[i] = static_cast<U>(data_[i]);
+			}
+		}
 		return out;
 	}
 
@@ -357,76 +364,86 @@ template <typename T> class Array {
 
 	// Returns the minimum value in the array
 	T min() const {
-		if (size_ == 0)
-			throw std::logic_error("min of empty array");
-		if (size_ < 100000) {
-			T m = data_[0];
-			for (size_t i = 1; i < size_; ++i)
-				if (data_[i] < m)
-					m = data_[i];
+		if constexpr (is_complex_v<T>) {
+			throw std::domain_error(
+				"min() is undefined for complex arrays (no ordering)");
+		} else {
+			if (size_ == 0)
+				throw std::logic_error("min of empty array");
+			if (size_ < 100000) {
+				T m = data_[0];
+				for (size_t i = 1; i < size_; ++i)
+					if (data_[i] < m)
+						m = data_[i];
+				return m;
+			}
+			size_t nthreads = ThreadPool::global().size();
+			size_t chunk = (size_ + nthreads - 1) / nthreads;
+			std::vector<T> partials(nthreads);
+			std::vector<std::future<void>> futs;
+			for (size_t t = 0; t < nthreads; ++t) {
+				size_t s = t * chunk, e = std::min(size_, s + chunk);
+				if (s >= e)
+					break;
+				if (t == 0)
+					s = 0; // ensure first chunk covers data_[0]
+				futs.push_back(ThreadPool::global().enqueue([&, t, s, e] {
+					T m = static_cast<T>(data_[s]);
+					for (size_t i = s + 1; i < e; ++i)
+						if (static_cast<T>(data_[i]) < m)
+							m = static_cast<T>(data_[i]);
+					partials[t] = m;
+				}));
+			}
+			for (auto &f : futs)
+				f.get();
+			T m = partials[0];
+			for (size_t t = 1; t < partials.size(); ++t)
+				if (partials[t] < m)
+					m = partials[t];
 			return m;
 		}
-		size_t nthreads = ThreadPool::global().size();
-		size_t chunk = (size_ + nthreads - 1) / nthreads;
-		std::vector<T> partials(nthreads);
-		std::vector<std::future<void>> futs;
-		for (size_t t = 0; t < nthreads; ++t) {
-			size_t s = t * chunk, e = std::min(size_, s + chunk);
-			if (s >= e)
-				break;
-			if (t == 0)
-				s = 0; // ensure first chunk covers data_[0]
-			futs.push_back(ThreadPool::global().enqueue([&, t, s, e] {
-				T m = static_cast<T>(data_[s]);
-				for (size_t i = s + 1; i < e; ++i)
-					if (static_cast<T>(data_[i]) < m)
-						m = static_cast<T>(data_[i]);
-				partials[t] = m;
-			}));
-		}
-		for (auto &f : futs)
-			f.get();
-		T m = partials[0];
-		for (size_t t = 1; t < partials.size(); ++t)
-			if (partials[t] < m)
-				m = partials[t];
-		return m;
 	}
 
 	// Returns the maximum value in the array
 	T max() const {
-		if (size_ == 0)
-			throw std::logic_error("max of empty array");
-		if (size_ < 100000) {
-			T m = data_[0];
-			for (size_t i = 1; i < size_; ++i)
-				if (data_[i] > m)
-					m = data_[i];
+		if constexpr (is_complex_v<T>) {
+			throw std::domain_error(
+				"max() is undefined for complex arrays (no ordering)");
+		} else {
+			if (size_ == 0)
+				throw std::logic_error("max of empty array");
+			if (size_ < 100000) {
+				T m = data_[0];
+				for (size_t i = 1; i < size_; ++i)
+					if (data_[i] > m)
+						m = data_[i];
+				return m;
+			}
+			size_t nthreads = ThreadPool::global().size();
+			size_t chunk = (size_ + nthreads - 1) / nthreads;
+			std::vector<T> partials(nthreads);
+			std::vector<std::future<void>> futs;
+			for (size_t t = 0; t < nthreads; ++t) {
+				size_t s = t * chunk, e = std::min(size_, s + chunk);
+				if (s >= e)
+					break;
+				futs.push_back(ThreadPool::global().enqueue([&, t, s, e] {
+					T m = static_cast<T>(data_[s]);
+					for (size_t i = s + 1; i < e; ++i)
+						if (static_cast<T>(data_[i]) > m)
+							m = static_cast<T>(data_[i]);
+					partials[t] = m;
+				}));
+			}
+			for (auto &f : futs)
+				f.get();
+			T m = partials[0];
+			for (size_t t = 1; t < partials.size(); ++t)
+				if (partials[t] > m)
+					m = partials[t];
 			return m;
 		}
-		size_t nthreads = ThreadPool::global().size();
-		size_t chunk = (size_ + nthreads - 1) / nthreads;
-		std::vector<T> partials(nthreads);
-		std::vector<std::future<void>> futs;
-		for (size_t t = 0; t < nthreads; ++t) {
-			size_t s = t * chunk, e = std::min(size_, s + chunk);
-			if (s >= e)
-				break;
-			futs.push_back(ThreadPool::global().enqueue([&, t, s, e] {
-				T m = static_cast<T>(data_[s]);
-				for (size_t i = s + 1; i < e; ++i)
-					if (static_cast<T>(data_[i]) > m)
-						m = static_cast<T>(data_[i]);
-				partials[t] = m;
-			}));
-		}
-		for (auto &f : futs)
-			f.get();
-		T m = partials[0];
-		for (size_t t = 1; t < partials.size(); ++t)
-			if (partials[t] > m)
-				m = partials[t];
-		return m;
 	}
 
 	// Returns the mean value of the array
@@ -439,6 +456,10 @@ template <typename T> class Array {
 				if (v)
 					++cnt;
 			return (double)cnt / (double)size_;
+		} else if constexpr (is_complex_v<T>) {
+			// A complex mean is not representable as double; use avg().
+			throw std::domain_error(
+				"mean() of a complex array is undefined; use avg()");
 		} else {
 			// use parallel sum
 			return (double)sum() / (double)size_;
@@ -457,26 +478,44 @@ template <typename T> class Array {
 
 	// Returns the minimum value along the given axis
 	Array min_axis(size_t axis) const {
-		if (size_ == 0)
-			throw std::logic_error("min_axis empty");
-		return reduce_axis_minmax(axis, true);
+		if constexpr (is_complex_v<T>) {
+			throw std::domain_error(
+				"min(axis) is undefined for complex arrays (no ordering)");
+		} else {
+			if (size_ == 0)
+				throw std::logic_error("min_axis empty");
+			return reduce_axis_minmax(axis, true);
+		}
 	}
 
 	// Returns the maximum value along the given axis
 	Array max_axis(size_t axis) const {
-		if (size_ == 0)
-			throw std::logic_error("max_axis empty");
-		return reduce_axis_minmax(axis, false);
+		if constexpr (is_complex_v<T>) {
+			throw std::domain_error(
+				"max(axis) is undefined for complex arrays (no ordering)");
+		} else {
+			if (size_ == 0)
+				throw std::logic_error("max_axis empty");
+			return reduce_axis_minmax(axis, false);
+		}
 	}
 
 	// Returns the mean value along the given axis
-	Array<double> mean_axis(size_t axis) const {
+	auto mean_axis(size_t axis) const {
 		auto s = sum(axis);
-		auto out = s.template astype<double>();
-		double div = (double)shape_[axis];
-		for (size_t i = 0; i < out.size(); ++i)
-			out[i] /= div;
-		return out;
+		if constexpr (is_complex_v<T>) {
+			auto out = s;
+			T div = static_cast<T>(static_cast<double>(shape_[axis]));
+			for (size_t i = 0; i < out.size(); ++i)
+				out[i] /= div;
+			return out;
+		} else {
+			auto out = s.template astype<double>();
+			double div = (double)shape_[axis];
+			for (size_t i = 0; i < out.size(); ++i)
+				out[i] /= div;
+			return out;
+		}
 	}
 
 	// =============================

@@ -16,6 +16,8 @@ from ._dracolix_nb import (  # type: ignore
     arange,
     array,
     asarray,
+    c64,
+    c128,
     cg_solve,
     cholesky,
     det,
@@ -61,6 +63,8 @@ __all__ = [
     "array",
     "asarray",
     "bool_",
+    "c64",
+    "c128",
     "cg_solve",
     "cholesky",
     "det",
@@ -89,8 +93,18 @@ __all__ = [
     "zeros",
 ]
 
-_dtype_names = {"f32": f32, "f64": f64, "i32": i32, "i64": i64, "bool_": bool_}
+_dtype_names = {
+    "f32": f32,
+    "f64": f64,
+    "i32": i32,
+    "i64": i64,
+    "c64": c64,
+    "c128": c128,
+    "bool_": bool_,
+}
 _dtype_by_name = {k: v for k, v in _dtype_names.items()}
+# NumPy-style aliases for complex dtypes.
+_dtype_by_name.update({"complex64": c64, "complex128": c128, "complex": c128})
 del _dtype_names
 
 
@@ -100,6 +114,8 @@ def dtype(x) -> DType:
         return x.dtype
     if isinstance(x, DType):
         return x
+    if x is complex:
+        return c128
     if isinstance(x, str):
         try:
             return _dtype_by_name[x]

@@ -3,10 +3,12 @@
 // Data type enumeration and size utilities
 // Licensed under GPL-3.0+
 
+#include <complex>
 #include <cstddef>
 #include <cstdint>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 
 namespace dracolix {
 
@@ -58,6 +60,8 @@ inline bool is_implemented(DType dt) {
 	case DType::F64:
 	case DType::I32:
 	case DType::I64:
+	case DType::C64:
+	case DType::C128:
 	case DType::Bool:
 		return true;
 	default:
@@ -147,6 +151,10 @@ inline std::string dtype_name(DType dt) {
 		return "i32";
 	case DType::I64:
 		return "i64";
+	case DType::C64:
+		return "c64";
+	case DType::C128:
+		return "c128";
 	case DType::Bool:
 		return "bool";
 	default:
@@ -173,5 +181,26 @@ template <> struct DTypeOf<int64_t> {
 template <> struct DTypeOf<bool> {
 	static constexpr DType value = DType::Bool;
 };
+// C64 = std::complex<float> (8 bytes), C128 = std::complex<double> (16 bytes)
+template <> struct DTypeOf<std::complex<float>> {
+	static constexpr DType value = DType::C64;
+};
+template <> struct DTypeOf<std::complex<double>> {
+	static constexpr DType value = DType::C128;
+};
+
+// Compile-time detection of complex element types.
+template <typename T> struct is_complex : std::false_type {};
+template <typename T> struct is_complex<std::complex<T>> : std::true_type {};
+template <typename T> inline constexpr bool is_complex_v = is_complex<T>::value;
+
+// Conjugate the value for a complex T; identity for real/integer T.
+template <typename T> inline T conj_if_complex(T v) {
+	if constexpr (is_complex_v<T>) {
+		return std::conj(v);
+	} else {
+		return v;
+	}
+}
 
 } // namespace dracolix

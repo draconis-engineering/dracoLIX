@@ -465,17 +465,19 @@ template <typename T> double norm(const Array<T> &a, int p) {
 	if (p == 0) {
 		double m = 0;
 		for (size_t i = 0; i < a.size(); ++i)
-			m = std::max(m, std::abs((double)a[i]));
+			m = std::max(m, static_cast<double>(std::abs(a[i])));
 		return m;
 	} else if (p == 1) {
 		double s = 0;
 		for (size_t i = 0; i < a.size(); ++i)
-			s += std::abs((double)a[i]);
+			s += std::abs(a[i]);
 		return s;
 	} else if (p == 2) {
 		double s = 0;
-		for (size_t i = 0; i < a.size(); ++i)
-			s += (double)a[i] * (double)a[i];
+		for (size_t i = 0; i < a.size(); ++i) {
+			double m = static_cast<double>(std::abs(a[i]));
+			s += m * m;
+		}
 		return std::sqrt(s);
 	} else
 		throw std::invalid_argument("norm: only p=0(inf),1,2");
