@@ -18,6 +18,10 @@ add_executable(test_eigen_svd test_eigen_svd.cpp)
 target_link_libraries(test_eigen_svd PRIVATE dracolix_core)
 add_test(NAME test_eigen_svd COMMAND test_eigen_svd)
 
+add_executable(test_complex test_complex.cpp)
+target_link_libraries(test_complex PRIVATE dracolix_core)
+add_test(NAME test_complex COMMAND test_complex)
+
 add_executable(test_numerics_ode test_numerics_ode.cpp)
 target_link_libraries(test_numerics_ode PRIVATE dracolix_core)
 add_test(NAME test_numerics_ode COMMAND test_numerics_ode)

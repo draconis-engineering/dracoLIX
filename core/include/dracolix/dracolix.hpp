@@ -7,6 +7,7 @@
 #include "alloc.hpp"
 #include "array.hpp"
 #include "array_view.hpp"
+#include "complex_ops.hpp"
 #include "cpu.hpp"
 #include "decomp.hpp"
 #include "dtype.hpp"

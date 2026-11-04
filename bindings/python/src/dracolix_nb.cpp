@@ -1788,6 +1788,52 @@ DlxArray dlx_mean_axis(const DlxArray &a, int64_t axis) {
 }
 
 // ---------------------------------------------------------------------------
+// complex-valued helpers: real / imag / conj / abs / angle
+//
+// These work for every dtype. For real arrays the imaginary part is zero,
+// conjugation and the real part are identity, and the phase is 0 or pi.
+// ---------------------------------------------------------------------------
+DlxArray dlx_real(const DlxArray &a) {
+	return std::visit(
+		[](const auto &arr) -> DlxArray {
+			return DlxArray(dracolix::cplx::real(arr));
+		},
+		a.v);
+}
+
+DlxArray dlx_imag(const DlxArray &a) {
+	return std::visit(
+		[](const auto &arr) -> DlxArray {
+			return DlxArray(dracolix::cplx::imag(arr));
+		},
+		a.v);
+}
+
+DlxArray dlx_conj(const DlxArray &a) {
+	return std::visit(
+		[](const auto &arr) -> DlxArray {
+			return DlxArray(dracolix::cplx::conj(arr));
+		},
+		a.v);
+}
+
+DlxArray dlx_abs(const DlxArray &a) {
+	return std::visit(
+		[](const auto &arr) -> DlxArray {
+			return DlxArray(dracolix::cplx::abs(arr));
+		},
+		a.v);
+}
+
+DlxArray dlx_angle(const DlxArray &a) {
+	return std::visit(
+		[](const auto &arr) -> DlxArray {
+			return DlxArray(dracolix::cplx::angle(arr));
+		},
+		a.v);
+}
+
+// ---------------------------------------------------------------------------
 // tolist / repr
 // ---------------------------------------------------------------------------
 template <typename T>
@@ -2771,6 +2817,15 @@ NB_MODULE(_dracolix_nb, m) {
 			},
 			nb::arg("axis"))
 
+		// ---- complex-valued helpers ----
+		.def_prop_ro("real", &dlx_real)
+		.def_prop_ro("imag", &dlx_imag)
+		.def("conj", &dlx_conj)
+		.def("conjugate", &dlx_conj)
+		.def("abs", &dlx_abs)
+		.def("angle", &dlx_angle)
+		.def("__abs__", &dlx_abs)
+
 		.def("__add__", &dlx_add)
 		.def("__radd__", &dlx_add)
 		.def("__sub__", &dlx_sub)
@@ -3016,6 +3071,15 @@ NB_MODULE(_dracolix_nb, m) {
 	m.def("norm", &dlx_norm, nb::arg("a"), nb::arg("p") = 2);
 	m.def("diagonal", &dlx_diagonal, nb::arg("A"));
 	m.def("diag", &dlx_diag, nb::arg("d"));
+
+	// ---- complex-valued helpers -------------------------------------------
+	m.def("real", &dlx_real, nb::arg("a"));
+	m.def("imag", &dlx_imag, nb::arg("a"));
+	m.def("conj", &dlx_conj, nb::arg("a"));
+	m.def("conjugate", &dlx_conj, nb::arg("a"));
+	m.def("abs", &dlx_abs, nb::arg("a"));
+	m.def("absolute", &dlx_abs, nb::arg("a"));
+	m.def("angle", &dlx_angle, nb::arg("a"));
 
 	// ---- decompositions ----------------------------------------------------
 	m.def("lu", &dlx_lu, nb::arg("A"));

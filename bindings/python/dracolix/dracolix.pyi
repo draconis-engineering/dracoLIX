@@ -49,8 +49,9 @@ class Array:
 
     Complex notes: ``min``/``max`` (and their ``axis`` forms) are undefined
     because complex numbers have no ordering; ``mean`` returns a complex scalar
-    and ``norm`` uses the modulus. ``eig``/``svd`` and sparse matrices do not
-    support complex yet.
+    and ``norm`` uses the modulus. ``real``/``imag``/``conj``/``abs``/``angle``
+    work for every dtype (real arrays report a zero imaginary part and a phase
+    of 0 or pi). ``eig``/``svd`` and sparse matrices do not support complex yet.
     """
 
     dtype: DType
@@ -61,6 +62,8 @@ class Array:
     itemsize: int
     layout: str  # "row-major" | "col-major" || switch to boolean flag for this?
     T: Array  # 2-D transpose
+    real: Array  # real part (a copy)
+    imag: Array  # imaginary part (zeros for real dtypes)
 
     def __len__(self) -> int: ...
     def __bool__(self) -> bool:
@@ -111,6 +114,16 @@ class Array:
     def reshape(self, shape: int | Sequence[int]) -> Array: ...
     def transpose(self) -> Array: ...
     def tolist(self) -> Any: ...
+    def conj(self) -> Array:
+        """Element-wise complex conjugate (identity for real dtypes)."""
+    def conjugate(self) -> Array:
+        """Alias of :meth:`conj`."""
+    def abs(self) -> Array:
+        """Element-wise modulus; dtype is the underlying real type."""
+    def __abs__(self) -> Array:
+        """Same as :meth:`abs`."""
+    def angle(self) -> Array:
+        """Element-wise phase in radians, in (-pi, pi]."""
 
 # --------------------------------------------------------------------------
 # Constructors
@@ -249,6 +262,30 @@ def dot(a: Array | Any, b: Array | Any) -> Scalar:
 
 def norm(a: Array, p: int = 2) -> float:
     """Vector norm: p=0 (max-abs / inf), p=1, p=2. Requires 1-D input."""
+
+# --------------------------------------------------------------------------
+# Complex helpers (defined for every dtype; see the Array notes)
+# --------------------------------------------------------------------------
+def real(a: Array) -> Array:
+    """Element-wise real part. Complex input returns the underlying float dtype."""
+
+def imag(a: Array) -> Array:
+    """Element-wise imaginary part (all zeros for real/integer input)."""
+
+def conj(a: Array) -> Array:
+    """Element-wise complex conjugate (identity for real/integer input)."""
+
+def conjugate(a: Array) -> Array:
+    """Alias of :func:`conj`."""
+
+def abs(a: Array) -> Array:
+    """Element-wise modulus / absolute value."""
+
+def absolute(a: Array) -> Array:
+    """Alias of :func:`abs`."""
+
+def angle(a: Array) -> Array:
+    """Element-wise phase in radians, in (-pi, pi]; 0 or pi for real input."""
 
 def diagonal(A: Array) -> Array:
     """Extract the diagonal of a 2-D array."""

@@ -200,6 +200,103 @@ def test_complex_min_max_raise():
 
 
 # ---------------------------------------------------------------------------
+# element-wise complex helpers: real / imag / conj / abs / angle
+# ---------------------------------------------------------------------------
+def test_complex_real_imag():
+    a = dlx.array([1 + 2j, -3 + 4j, 0 - 1j])
+    assert a.real.tolist() == [1.0, -3.0, 0.0]
+    assert a.imag.tolist() == [2.0, 4.0, -1.0]
+    assert a.real.dtype is dlx.f64
+    assert a.imag.dtype is dlx.f64
+    assert dlx.real(a).tolist() == a.real.tolist()
+    assert dlx.imag(a).tolist() == a.imag.tolist()
+
+    b = dlx.array([1 + 2j], dtype=dlx.c64)
+    assert b.real.dtype is dlx.f32
+    assert b.imag.dtype is dlx.f32
+    close_all(b.real, [1.0])
+    close_all(b.imag, [2.0])
+
+
+def test_complex_conj():
+    a = dlx.array([1 + 2j, -3 - 4j])
+    assert a.conj().tolist() == [1 - 2j, -3 + 4j]
+    assert a.conjugate().tolist() == a.conj().tolist()
+    assert dlx.conj(a).tolist() == a.conj().tolist()
+    assert dlx.conjugate(a).tolist() == a.conj().tolist()
+    assert a.conj().conj().tolist() == a.tolist()
+    assert a.conj().dtype is dlx.c128
+
+
+def test_complex_abs_and_builtin_abs():
+    a = dlx.array([3 + 4j, -1 + 0j, 0 - 2j])
+    assert a.abs().tolist() == [5.0, 1.0, 2.0]
+    assert abs(a).tolist() == [5.0, 1.0, 2.0]
+    assert dlx.abs(a).tolist() == [5.0, 1.0, 2.0]
+    assert dlx.absolute(a).tolist() == [5.0, 1.0, 2.0]
+    assert a.abs().dtype is dlx.f64
+    assert abs(dlx.array([3 + 4j], dtype=dlx.c64)).dtype is dlx.f32
+
+
+def test_complex_angle():
+    a = dlx.array([1 + 0j, 0 + 1j, -1 + 0j, 0 - 1j])
+    got = a.angle().tolist()
+    for x, want in zip(got, [0.0, cmath.pi / 2, cmath.pi, -cmath.pi / 2]):
+        close(x, want)
+    close_all(dlx.angle(a), got)
+    assert a.angle().dtype is dlx.f64
+    assert dlx.array([1j], dtype=dlx.c64).angle().dtype is dlx.f32
+
+
+def test_complex_helpers_preserve_shape():
+    a = dlx.array([[1 + 1j, 2 + 2j], [3 - 3j, 4 - 4j]])
+    assert a.real.shape == (2, 2)
+    assert a.imag.shape == (2, 2)
+    assert a.conj().shape == (2, 2)
+    assert a.abs().shape == (2, 2)
+    assert a.angle().shape == (2, 2)
+    # Euler identity: z == |z| * (cos arg + i sin arg)
+    r = a.abs().tolist()
+    th = a.angle().tolist()
+    for row_r, row_th, row_z in zip(r, th, a.tolist()):
+        for rr, tt, zz in zip(row_r, row_th, row_z):
+            close(rr * (cmath.cos(tt) + 1j * cmath.sin(tt)), zz, 1e-12)
+
+
+def test_complex_helpers_on_real_arrays():
+    a = dlx.array([3.0, -2.5, 0.0])
+    assert a.real.tolist() == [3.0, -2.5, 0.0]
+    assert a.imag.tolist() == [0.0, 0.0, 0.0]
+    assert a.conj().tolist() == [3.0, -2.5, 0.0]
+    assert a.abs().tolist() == [3.0, 2.5, 0.0]
+    close_all(a.angle(), [0.0, cmath.pi, 0.0])
+    assert a.real.dtype is dlx.f64
+    assert a.imag.dtype is dlx.f64
+    assert a.conj().dtype is dlx.f64
+
+
+def test_complex_helpers_on_integer_arrays():
+    a = dlx.array([-7, 0, 4], dtype=dlx.i32)
+    assert a.real.tolist() == [-7, 0, 4]
+    assert a.imag.tolist() == [0, 0, 0]
+    assert a.conj().tolist() == [-7, 0, 4]
+    assert a.abs().tolist() == [7, 0, 4]
+    assert a.real.dtype is dlx.i32
+    assert a.imag.dtype is dlx.i32
+    # Phase is a floating-point quantity even for integer input.
+    assert a.angle().dtype is dlx.f64
+    close_all(a.angle(), [cmath.pi, 0.0, 0.0])
+
+
+def test_complex_helpers_on_bool_arrays():
+    a = dlx.array([False, True, True])
+    assert a.real.tolist() == [False, True, True]
+    assert a.imag.tolist() == [False, False, False]
+    assert a.conj().tolist() == [False, True, True]
+    assert a.abs().tolist() == [False, True, True]
+
+
+# ---------------------------------------------------------------------------
 # linear algebra
 # ---------------------------------------------------------------------------
 def test_complex_dot_is_not_conjugated():

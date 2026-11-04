@@ -476,7 +476,7 @@ The architecture and roadmap described above represent the **direction of the pr
 - [x] Expanded linear algebra (matmul, matvec, dot, norms, diag, batched)
 - [x] Sparse matrices (CSR/CSC, sparse matmul, CG)
 - [x] Numerical solvers (LU, QR, Cholesky, eigen, SVD)
-- [x] Complex number support (c64/c128, arithmetic, LU/QR/Cholesky, buffers)
+- [x] Complex number support (c64/c128, arithmetic, real/imag/conj/abs/angle, LU/QR/Cholesky, buffers)
 - [x] Julia interface (C ABI + ccall)
 - [ ] ODE/PDE tooling (ODE solvers done, PDE not started)
 - [ ] Optimization
