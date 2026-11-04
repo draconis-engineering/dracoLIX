@@ -30,6 +30,22 @@ add_executable(test_pde test_pde.cpp)
 target_link_libraries(test_pde PRIVATE dracolix_core)
 add_test(NAME test_pde COMMAND test_pde)
 
+add_executable(test_random test_random.cpp)
+target_link_libraries(test_random PRIVATE dracolix_core)
+add_test(NAME test_random COMMAND test_random)
+
+add_executable(test_distributions test_distributions.cpp)
+target_link_libraries(test_distributions PRIVATE dracolix_core)
+add_test(NAME test_distributions COMMAND test_distributions)
+
+add_executable(test_optimize test_optimize.cpp)
+target_link_libraries(test_optimize PRIVATE dracolix_core)
+add_test(NAME test_optimize COMMAND test_optimize)
+
+add_executable(test_least_squares test_least_squares.cpp)
+target_link_libraries(test_least_squares PRIVATE dracolix_core)
+add_test(NAME test_least_squares COMMAND test_least_squares)
+
 # Exercises every GEMM backend across awkward shapes (remainder tiles,
 # degenerate m/n/p) against a naive independent oracle.
 add_executable(test_gemm test_gemm.cpp)

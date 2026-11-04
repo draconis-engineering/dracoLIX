@@ -187,10 +187,10 @@ Nå beveger vi oss fra "linear algebra library" til SciComp.
 - [x] Interpolation (`interp_linear` 1-D)
 - [x] Numerical differentiation (`derivative` central 1e-6)
 - [x] Numerical integration (`integrate_simpson`/`trapezoidal` 1e-6 on x²)
-- [ ] Optimization
-- [ ] Least squares
-- [ ] Random number generation
-- [ ] Probability distributions
+- [x] Optimization (`golden_section`, `nelder_mead`, `bfgs` with numerical gradients)
+- [x] Least squares (`lstsq` via QR, `polyfit`/`polyval`)
+- [x] Random number generation (seedable `Rng` + array helpers)
+- [x] Probability distributions (normal, uniform, exponential, Bernoulli, Poisson)
 - [x] Differential equations (`core/include/dracolix/ode.hpp:11`)
 - [x] ODE framework (`State` vector, `RHS` functor, traj vector)
 - [x] Euler (fixed-step)

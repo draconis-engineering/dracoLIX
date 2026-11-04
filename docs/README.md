@@ -479,7 +479,8 @@ The architecture and roadmap described above represent the **direction of the pr
 - [x] Complex number support (c64/c128, arithmetic, real/imag/conj/abs/angle, LU/QR/Cholesky, buffers)
 - [x] Julia interface (C ABI + ccall)
 - [x] ODE/PDE tooling (explicit + stiff ODE solvers; 1-D heat/wave/advection and 1-D/2-D Poisson finite differences)
-- [ ] Optimization
+- [x] Optimization (golden-section, Nelder-Mead, BFGS)
+- [x] Least squares, random numbers and probability distributions
 - [ ] Scientific simulation
 - [ ] CFD
 - [ ] GPU acceleration
