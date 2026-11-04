@@ -481,6 +481,7 @@ The architecture and roadmap described above represent the **direction of the pr
 - [x] ODE/PDE tooling (explicit + stiff ODE solvers; 1-D heat/wave/advection and 1-D/2-D Poisson finite differences)
 - [x] Optimization (golden-section, Nelder-Mead, BFGS)
 - [x] Least squares, random numbers and probability distributions
+- [x] Physical units, scientific constants, signal processing and time-series primitives
 - [ ] Scientific simulation
 - [ ] CFD
 - [ ] GPU acceleration

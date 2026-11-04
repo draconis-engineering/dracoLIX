@@ -8,6 +8,7 @@
 #include "array.hpp"
 #include "array_view.hpp"
 #include "complex_ops.hpp"
+#include "constants.hpp"
 #include "cpu.hpp"
 #include "decomp.hpp"
 #include "distributions.hpp"
@@ -22,9 +23,12 @@
 #include "optimize.hpp"
 #include "pde.hpp"
 #include "random.hpp"
+#include "signal.hpp"
 #include "sparse.hpp"
 #include "svd.hpp"
 #include "thread_pool.hpp"
+#include "timeseries.hpp"
+#include "units.hpp"
 
 namespace dracolix {
 constexpr const char *version = "0.2.8";

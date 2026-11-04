@@ -206,10 +206,10 @@ Exit condition: DracoLIX kan brukes til å implementere faktiske matematiske mod
 
 Her begynner den opprinnelige visjonen å bli real.
 
-- [ ] Physical units / dimensions
-- [ ] Scientific constants
-- [ ] Signal processing
-- [ ] Time-series primitives
+- [x] Physical units / dimensions (`units::Quantity` with compile-time dimension checking and SI units)
+- [x] Scientific constants (`core/include/dracolix/constants.hpp`, CODATA 2018 values with units)
+- [x] Signal processing (DFT/radix-2 FFT, inverse transforms, convolution/correlation, windows, power spectra)
+- [x] Time-series primitives (differencing, cumsum, rolling statistics, EWMA, autocorrelation, z-score)
 - [ ] Optimization framework
 - [ ] Numerical simulation framework
 - [ ] Mesh/data structures
