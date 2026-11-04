@@ -17,6 +17,7 @@
 #include "mem.hpp"
 #include "numerics.hpp"
 #include "ode.hpp"
+#include "pde.hpp"
 #include "sparse.hpp"
 #include "svd.hpp"
 #include "thread_pool.hpp"

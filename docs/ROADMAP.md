@@ -198,7 +198,7 @@ Nå beveger vi oss fra "linear algebra library" til SciComp.
 - [x] Adaptive Runge-Kutta (`adaptive_rk45` step-doubling, tol 1e-6)
 - [x] Stiff solvers (backward Euler + variable-step BDF2 with damped Newton, optional analytic Jacobian)
 - [x] Unified `solve_ivp` entry point (method dispatch + recorded time points)
-- [ ] PDE abstractions
+- [x] PDE abstractions (uniform grids; 1-D heat explicit/Crank-Nicolson, wave, upwind advection; 1-D and 2-D Poisson)
 
 Exit condition: DracoLIX kan brukes til å implementere faktiske matematiske modeller uten at du må finne frem NumPy/SciPy.
 

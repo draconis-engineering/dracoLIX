@@ -26,6 +26,10 @@ add_executable(test_numerics_ode test_numerics_ode.cpp)
 target_link_libraries(test_numerics_ode PRIVATE dracolix_core)
 add_test(NAME test_numerics_ode COMMAND test_numerics_ode)
 
+add_executable(test_pde test_pde.cpp)
+target_link_libraries(test_pde PRIVATE dracolix_core)
+add_test(NAME test_pde COMMAND test_pde)
+
 # Exercises every GEMM backend across awkward shapes (remainder tiles,
 # degenerate m/n/p) against a naive independent oracle.
 add_executable(test_gemm test_gemm.cpp)

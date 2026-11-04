@@ -478,7 +478,7 @@ The architecture and roadmap described above represent the **direction of the pr
 - [x] Numerical solvers (LU, QR, Cholesky, eigen, SVD)
 - [x] Complex number support (c64/c128, arithmetic, real/imag/conj/abs/angle, LU/QR/Cholesky, buffers)
 - [x] Julia interface (C ABI + ccall)
-- [ ] ODE/PDE tooling (ODE solvers done, PDE not started)
+- [x] ODE/PDE tooling (explicit + stiff ODE solvers; 1-D heat/wave/advection and 1-D/2-D Poisson finite differences)
 - [ ] Optimization
 - [ ] Scientific simulation
 - [ ] CFD
