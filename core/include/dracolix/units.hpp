@@ -20,8 +20,7 @@ namespace dracolix::units {
 // ---------------------------------------------------------------------------
 // Dimensions: exponents of the seven SI base dimensions
 // ---------------------------------------------------------------------------
-template <int L, int M, int Ti, int I, int Th, int N, int J>
-struct Dimension {
+template <int L, int M, int Ti, int I, int Th, int N, int J> struct Dimension {
 	static constexpr int length = L;
 	static constexpr int mass = M;
 	static constexpr int time = Ti;
@@ -94,14 +93,14 @@ using dim_div =
 			  A::luminous_intensity - B::luminous_intensity>;
 
 template <typename D, int N>
-using dim_pow = Dimension<D::length * N, D::mass * N, D::time * N,
-						  D::current * N, D::temperature * N, D::amount * N,
-						  D::luminous_intensity * N>;
+using dim_pow =
+	Dimension<D::length * N, D::mass * N, D::time * N, D::current * N,
+			  D::temperature * N, D::amount * N, D::luminous_intensity * N>;
 
 template <typename D>
-using dim_sqrt = Dimension<D::length / 2, D::mass / 2, D::time / 2,
-						   D::current / 2, D::temperature / 2, D::amount / 2,
-						   D::luminous_intensity / 2>;
+using dim_sqrt =
+	Dimension<D::length / 2, D::mass / 2, D::time / 2, D::current / 2,
+			  D::temperature / 2, D::amount / 2, D::luminous_intensity / 2>;
 
 template <typename D> using dim_inv = dim_div<Dimensionless, D>;
 
@@ -148,8 +147,7 @@ template <typename Dim, typename T = double> class Quantity {
 // Arithmetic
 // ---------------------------------------------------------------------------
 template <typename DA, typename TA, typename DB, typename TB>
-constexpr auto operator+(const Quantity<DA, TA> &a,
-						 const Quantity<DB, TB> &b) {
+constexpr auto operator+(const Quantity<DA, TA> &a, const Quantity<DB, TB> &b) {
 	static_assert(std::is_same_v<DA, DB>,
 				  "cannot add quantities with different dimensions");
 	using R = std::common_type_t<TA, TB>;
@@ -158,8 +156,7 @@ constexpr auto operator+(const Quantity<DA, TA> &a,
 }
 
 template <typename DA, typename TA, typename DB, typename TB>
-constexpr auto operator-(const Quantity<DA, TA> &a,
-						 const Quantity<DB, TB> &b) {
+constexpr auto operator-(const Quantity<DA, TA> &a, const Quantity<DB, TB> &b) {
 	static_assert(std::is_same_v<DA, DB>,
 				  "cannot subtract quantities with different dimensions");
 	using R = std::common_type_t<TA, TB>;
@@ -168,16 +165,14 @@ constexpr auto operator-(const Quantity<DA, TA> &a,
 }
 
 template <typename DA, typename TA, typename DB, typename TB>
-constexpr auto operator*(const Quantity<DA, TA> &a,
-						 const Quantity<DB, TB> &b) {
+constexpr auto operator*(const Quantity<DA, TA> &a, const Quantity<DB, TB> &b) {
 	using R = std::common_type_t<TA, TB>;
 	return Quantity<dim_mul<DA, DB>, R>(static_cast<R>(a.value()) *
 										static_cast<R>(b.value()));
 }
 
 template <typename DA, typename TA, typename DB, typename TB>
-constexpr auto operator/(const Quantity<DA, TA> &a,
-						 const Quantity<DB, TB> &b) {
+constexpr auto operator/(const Quantity<DA, TA> &a, const Quantity<DB, TB> &b) {
 	using R = std::common_type_t<TA, TB>;
 	return Quantity<dim_div<DA, DB>, R>(static_cast<R>(a.value()) /
 										static_cast<R>(b.value()));
@@ -215,33 +210,27 @@ constexpr auto operator/(S s, const Quantity<D, T> &q) {
 
 // Comparisons (same dimension only)
 template <typename D, typename TA, typename TB>
-constexpr bool operator==(const Quantity<D, TA> &a,
-						  const Quantity<D, TB> &b) {
+constexpr bool operator==(const Quantity<D, TA> &a, const Quantity<D, TB> &b) {
 	return a.value() == b.value();
 }
 template <typename D, typename TA, typename TB>
-constexpr bool operator!=(const Quantity<D, TA> &a,
-						  const Quantity<D, TB> &b) {
+constexpr bool operator!=(const Quantity<D, TA> &a, const Quantity<D, TB> &b) {
 	return !(a == b);
 }
 template <typename D, typename TA, typename TB>
-constexpr bool operator<(const Quantity<D, TA> &a,
-						 const Quantity<D, TB> &b) {
+constexpr bool operator<(const Quantity<D, TA> &a, const Quantity<D, TB> &b) {
 	return a.value() < b.value();
 }
 template <typename D, typename TA, typename TB>
-constexpr bool operator<=(const Quantity<D, TA> &a,
-						  const Quantity<D, TB> &b) {
+constexpr bool operator<=(const Quantity<D, TA> &a, const Quantity<D, TB> &b) {
 	return a.value() <= b.value();
 }
 template <typename D, typename TA, typename TB>
-constexpr bool operator>(const Quantity<D, TA> &a,
-						 const Quantity<D, TB> &b) {
+constexpr bool operator>(const Quantity<D, TA> &a, const Quantity<D, TB> &b) {
 	return a.value() > b.value();
 }
 template <typename D, typename TA, typename TB>
-constexpr bool operator>=(const Quantity<D, TA> &a,
-						  const Quantity<D, TB> &b) {
+constexpr bool operator>=(const Quantity<D, TA> &a, const Quantity<D, TB> &b) {
 	return a.value() >= b.value();
 }
 
@@ -269,10 +258,9 @@ constexpr auto pow(const Quantity<D, T> &q) {
 
 template <typename D, typename T>
 inline Quantity<dim_sqrt<D>, T> sqrt(const Quantity<D, T> &q) {
-	static_assert(D::length % 2 == 0 && D::mass % 2 == 0 &&
-					  D::time % 2 == 0 && D::current % 2 == 0 &&
-					  D::temperature % 2 == 0 && D::amount % 2 == 0 &&
-					  D::luminous_intensity % 2 == 0,
+	static_assert(D::length % 2 == 0 && D::mass % 2 == 0 && D::time % 2 == 0 &&
+					  D::current % 2 == 0 && D::temperature % 2 == 0 &&
+					  D::amount % 2 == 0 && D::luminous_intensity % 2 == 0,
 				  "sqrt requires even dimension exponents");
 	return Quantity<dim_sqrt<D>, T>(std::sqrt(q.value()));
 }
@@ -286,28 +274,22 @@ inline auto hypot(const Quantity<D, T> &a, const Quantity<D, T> &b) {
 // returns a plain scalar. Inverse trig returns a dimensionless Quantity.
 inline constexpr double pi = 3.141592653589793238462643383279502884;
 
-template <typename T>
-inline T sin(const Quantity<Dimensionless, T> &a) {
+template <typename T> inline T sin(const Quantity<Dimensionless, T> &a) {
 	return std::sin(a.value());
 }
-template <typename T>
-inline T cos(const Quantity<Dimensionless, T> &a) {
+template <typename T> inline T cos(const Quantity<Dimensionless, T> &a) {
 	return std::cos(a.value());
 }
-template <typename T>
-inline T tan(const Quantity<Dimensionless, T> &a) {
+template <typename T> inline T tan(const Quantity<Dimensionless, T> &a) {
 	return std::tan(a.value());
 }
-template <typename T>
-inline Quantity<Dimensionless, T> asin(T v) {
+template <typename T> inline Quantity<Dimensionless, T> asin(T v) {
 	return Quantity<Dimensionless, T>(std::asin(v));
 }
-template <typename T>
-inline Quantity<Dimensionless, T> acos(T v) {
+template <typename T> inline Quantity<Dimensionless, T> acos(T v) {
 	return Quantity<Dimensionless, T>(std::acos(v));
 }
-template <typename T>
-inline Quantity<Dimensionless, T> atan(T v) {
+template <typename T> inline Quantity<Dimensionless, T> atan(T v) {
 	return Quantity<Dimensionless, T>(std::atan(v));
 }
 template <typename T>
@@ -416,8 +398,8 @@ inline constexpr Quantity<CatalyticActivity> kat{1.0};
 inline constexpr Quantity<Temperature> celsius_to_kelvin(double celsius) {
 	return Quantity<Temperature>(celsius + 273.15);
 }
-inline constexpr Quantity<Temperature> kelvin_to_celsius(
-	const Quantity<Temperature> &k) {
+inline constexpr Quantity<Temperature>
+kelvin_to_celsius(const Quantity<Temperature> &k) {
 	return Quantity<Temperature>(k.value() - 273.15);
 }
 
