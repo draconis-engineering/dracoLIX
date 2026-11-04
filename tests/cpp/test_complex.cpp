@@ -129,9 +129,9 @@ void test_integer_and_bool() {
 	assert(ph.dtype() == DType::F64);
 	assert(re[0] == -7 && im[0] == 0 && mag[0] == 7);
 	assert(mag[2] == 4);
-	assert(close(ph[0], 0.0));
-	assert(close(ph[2], 0.0));
+	assert(close(ph[0], PI));
 	assert(close(ph[1], 0.0));
+	assert(close(ph[2], 0.0));
 
 	Array<bool> ab(std::vector<size_t>{2});
 	ab[0] = false;
