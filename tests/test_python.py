@@ -180,6 +180,27 @@ def test_truediv_is_float():
     assert f.dtype is dlx.f32
 
 
+def test_power():
+    a = dlx.array([1, 2, 3], dtype=dlx.i64)
+    r = a**2
+    assert r.dtype is dlx.i64
+    assert r.tolist() == [1, 4, 9]
+    assert (2**a).tolist() == [2, 4, 8]
+    assert (a ** dlx.array([1, 2, 3])).tolist() == [1, 4, 27]
+    with pytest.raises(ValueError):
+        _ = a**-1
+
+    f = dlx.array([4.0, 9.0])
+    assert (f**0.5).tolist() == pytest.approx([2.0, 3.0])
+    assert (f**2).dtype is dlx.f64
+    assert (dlx.array([2.0], dtype=dlx.f32) ** 2).dtype is dlx.f64
+
+    assert (dlx.array([[1, 2], [3, 4]]) ** dlx.array([2, 3])).tolist() == [
+        [1, 8],
+        [9, 64],
+    ]
+
+
 def test_promotion():
     i = dlx.array([1, 2], dtype=dlx.i64)
     f = dlx.array([0.5, 1.5], dtype=dlx.f64)

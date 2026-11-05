@@ -127,6 +127,20 @@ def test_complex_promotion():
     assert (c64 / c128).dtype is dlx.c128
 
 
+def test_complex_power():
+    a = dlx.array([1 + 2j, 3 - 4j])
+    close_all(a**2, [(1 + 2j) ** 2, (3 - 4j) ** 2])
+    assert (a**2).dtype is dlx.c128
+    close_all(a**2.0, [(1 + 2j) ** 2, (3 - 4j) ** 2])
+    close_all(dlx.array([1j], dtype=dlx.c64) ** 2, [-1 + 0j])
+    close_all(
+        (1 + 1j) ** dlx.array([2 + 0j, 3 + 0j]),
+        [(1 + 1j) ** 2, (1 + 1j) ** 3],
+    )
+    close_all(dlx.array([2.0]) ** dlx.array([1 + 1j]), [2 ** (1 + 1j)])
+    close_all(a ** dlx.array([0j, 1 + 0j]), [1 + 0j, 3 - 4j])
+
+
 def test_complex_comparisons():
     a = dlx.array([1 + 2j, 3 - 4j])
     b = dlx.array([1 + 2j, 0j])

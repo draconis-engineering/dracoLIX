@@ -429,7 +429,57 @@ dracolix::Array<bool> compare_bcast(const dracolix::Array<R> &a,
 // ---------------------------------------------------------------------------
 // Binary operations (promotion + broadcasting; no bool arithmetic)
 // ---------------------------------------------------------------------------
-enum class BinOp { Add, Sub, Mul, Div, Eq, Ne };
+enum class BinOp { Add, Sub, Mul, Div, Pow, Eq, Ne };
+
+// Element-wise power. Integer arrays keep their integer dtype (NumPy rejects
+// negative integer exponents), while floating/complex arrays use std::pow.
+template <typename R> R pow_scalar(R base, R exponent) {
+	if constexpr (std::is_integral_v<R>) {
+		int64_t e = static_cast<int64_t>(exponent);
+		if (e < 0)
+			throw nb::value_error(
+				"integers to negative integer powers are not allowed");
+		R result = R(1);
+		R factor = base;
+		uint64_t n = static_cast<uint64_t>(e);
+		while (n != 0) {
+			if ((n & 1u) != 0)
+				result *= factor;
+			n >>= 1;
+			if (n != 0)
+				factor *= factor;
+		}
+		return result;
+	} else {
+		return static_cast<R>(std::pow(base, exponent));
+	}
+}
+
+template <typename R>
+dracolix::Array<R> pow_bcast(const dracolix::Array<R> &a,
+							 const dracolix::Array<R> &b) {
+	if (a.shape() == b.shape()) {
+		dracolix::Array<R> out(a.shape());
+		for (size_t i = 0; i < a.size(); ++i)
+			out[i] = pow_scalar(a[i], b[i]);
+		return out;
+	}
+	auto bs = bcast_shape(a.shape(), b.shape());
+	dracolix::Array<R> out(bs);
+	size_t bnd = bs.size();
+	std::vector<size_t> idx(bnd);
+	for (size_t flat = 0; flat < out.size(); ++flat) {
+		size_t rem = flat;
+		for (int d = (int)bnd - 1; d >= 0; --d) {
+			idx[d] = rem % bs[d];
+			rem /= bs[d];
+		}
+		size_t off_a = bcast_offset(a.shape(), a.strides(), idx, bnd);
+		size_t off_b = bcast_offset(b.shape(), b.strides(), idx, bnd);
+		out[flat] = pow_scalar(a[off_a], b[off_b]);
+	}
+	return out;
+}
 
 template <typename R>
 DlxArray bin_typed(const DlxArray &A, const DlxArray &B, BinOp op) {
@@ -444,6 +494,8 @@ DlxArray bin_typed(const DlxArray &A, const DlxArray &B, BinOp op) {
 		return DlxArray(a * b);
 	case BinOp::Div:
 		return DlxArray(a / b);
+	case BinOp::Pow:
+		return DlxArray(pow_bcast(a, b));
 	case BinOp::Eq:
 		return DlxArray(compare_bcast<R>(a, b, true));
 	case BinOp::Ne:
@@ -518,6 +570,13 @@ nb::object dlx_mul(nb::object x, nb::object y) {
 }
 nb::object dlx_div(nb::object x, nb::object y) {
 	return dlx_bin_op(x, y, BinOp::Div);
+}
+nb::object dlx_pow(nb::object x, nb::object y) {
+	return dlx_bin_op(x, y, BinOp::Pow);
+}
+nb::object dlx_rpow(nb::object x, nb::object y) {
+	// __rpow__(self, other) means ``other ** self``.
+	return dlx_bin_op(y, x, BinOp::Pow);
 }
 nb::object dlx_eq(nb::object x, nb::object y) {
 	return dlx_bin_op(x, y, BinOp::Eq);
@@ -2836,6 +2895,8 @@ NB_MODULE(_dracolix_nb, m) {
 		.def("__truediv__", &dlx_div)
 		.def("__rtruediv__",
 			 [](nb::object x, nb::object y) { return dlx_div(y, x); })
+		.def("__pow__", &dlx_pow)
+		.def("__rpow__", &dlx_rpow)
 		.def("__neg__", &dlx_neg)
 		.def("__eq__", &dlx_eq)
 		.def("__ne__", &dlx_ne)
