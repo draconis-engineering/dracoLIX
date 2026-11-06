@@ -38,9 +38,9 @@ template <typename T> LuResult<T> lu(const Array<T> &A) {
 	for (size_t k = 0; k < n; ++k) {
 		// pivot: max |U[i,k]| for i>=k
 		size_t piv = k;
-		double maxv = static_cast<double>(std::abs(U.at(k, k)));
+		double maxv = static_cast<double>(abs_value(U.at(k, k)));
 		for (size_t i = k + 1; i < n; ++i) {
-			double v = static_cast<double>(std::abs(U.at(i, k)));
+			double v = static_cast<double>(abs_value(U.at(i, k)));
 			if (v > maxv) {
 				maxv = v;
 				piv = i;
@@ -150,7 +150,9 @@ template <typename T> Array<T> solve(const Array<T> &A, const Array<T> &b) {
 
 template <typename T> T determinant(const Array<T> &A) {
 	auto f = lu(A);
-	T det = (f.swaps % 2 == 0 ? T{1} : T{-1});
+	T det = T{1};
+	if (f.swaps % 2 != 0)
+		det = T{0} - T{1};
 	for (size_t i = 0; i < A.shape()[0]; ++i)
 		det *= f.U.at(i, i);
 	return det;
@@ -180,7 +182,7 @@ template <typename T> size_t rank(const Array<T> &A, double tol = 1e-9) {
 	auto f = lu(A);
 	size_t r = 0;
 	for (size_t i = 0; i < A.shape()[0]; ++i)
-		if (std::abs(f.U.at(i, i)) > tol)
+		if (abs_value(f.U.at(i, i)) > tol)
 			++r;
 	return r;
 }
@@ -221,7 +223,7 @@ template <typename T> QrResult<T> qr(const Array<T> &A) {
 		// normalize
 		double norm = 0;
 		for (size_t k = 0; k < m; ++k) {
-			double mag = static_cast<double>(std::abs(Q.at(k, j)));
+			double mag = static_cast<double>(abs_value(Q.at(k, j)));
 			norm += mag * mag;
 		}
 		norm = std::sqrt(norm);

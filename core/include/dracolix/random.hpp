@@ -26,8 +26,7 @@ class Rng {
 
 	// Uniform in [0, 1) with 53 bits of resolution.
 	double uniform() {
-		return static_cast<double>(gen_() >> 11) *
-			   (1.0 / 9007199254740992.0);
+		return static_cast<double>(gen_() >> 11) * (1.0 / 9007199254740992.0);
 	}
 
 	// Uniform in [a, b).

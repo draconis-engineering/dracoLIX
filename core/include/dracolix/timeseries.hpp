@@ -144,8 +144,7 @@ inline Array<double> ewma_span(const Array<double> &x, size_t span) {
 }
 
 // Normalised autocorrelation for lags 0..max_lag (input length n).
-inline Array<double> autocorrelation(const Array<double> &x,
-									 size_t max_lag) {
+inline Array<double> autocorrelation(const Array<double> &x, size_t max_lag) {
 	detail::require_1d(x, "autocorrelation");
 	if (x.size() < 2)
 		throw std::invalid_argument("autocorrelation: need at least 2 samples");

@@ -123,7 +123,8 @@ C = A @ B
 
 Currently available from Python:
 
-- Arrays: `array`, `asarray`, `zeros`, `ones`, `empty`, `full`, `arange`
+- Arrays: `array`, `asarray`, `zeros`, `ones`, `empty`, `full`, `arange`,
+  `linspace`
 - Linear algebra: `matmul`, `matvec`, `dot`, `norm`, `diagonal`, `diag`
 - Decompositions / solvers: `lu`, `solve`, `inv`, `det`, `rank`, `qr`,
   `cholesky`, `eig`, `svd`
@@ -157,8 +158,14 @@ Instead:
 ```python
 dlx.f32
 dlx.f64
+dlx.i8
+dlx.i16
 dlx.i32
 dlx.i64
+dlx.u8
+dlx.u16
+dlx.u32
+dlx.u64
 dlx.c64
 dlx.c128
 ```
@@ -174,7 +181,8 @@ Conceptually:
         ▼           ▼           ▼
      Integer      Float      Complex
         │           │           │
-     i8/i16/...   f32/f64    c64/c128
+  i8/i16/i32/i64  f32/f64    c64/c128
+  u8/u16/u32/u64
 ```
 
 The DType system is intended to become part of the DracoLIX runtime itself.
@@ -477,6 +485,7 @@ The architecture and roadmap described above represent the **direction of the pr
 - [x] Sparse matrices (CSR/CSC, sparse matmul, CG)
 - [x] Numerical solvers (LU, QR, Cholesky, eigen, SVD)
 - [x] Complex number support (c64/c128, arithmetic, real/imag/conj/abs/angle, LU/QR/Cholesky, buffers)
+- [x] Extended integer dtypes (i8/i16/u8/u16/u32/u64), linspace, item()/__index__
 - [x] Julia interface (C ABI + ccall)
 - [x] ODE/PDE tooling (explicit + stiff ODE solvers; 1-D heat/wave/advection and 1-D/2-D Poisson finite differences)
 - [x] Optimization (golden-section, Nelder-Mead, BFGS)

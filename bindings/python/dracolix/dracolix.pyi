@@ -8,8 +8,9 @@ from typing import Any, TypeAlias, overload
 # --------------------------------------------------------------------------
 class DType:
     """A DracoLIX data type. Instances are the module singletons
-    ``dlx.f32``, ``dlx.f64``, ``dlx.i32``, ``dlx.i64``, ``dlx.c64``,
-    ``dlx.c128``, ``dlx.bool_``."""
+    ``dlx.f32``, ``dlx.f64``, ``dlx.i8``, ``dlx.i16``, ``dlx.i32``,
+    ``dlx.i64``, ``dlx.u8``, ``dlx.u16``, ``dlx.u32``, ``dlx.u64``,
+    ``dlx.c64``, ``dlx.c128``, ``dlx.bool_``."""
 
     name: str
     def __eq__(self, other: object) -> bool: ...
@@ -18,8 +19,14 @@ class DType:
 
 f32: DType
 f64: DType
+i8: DType
+i16: DType
 i32: DType
 i64: DType
+u8: DType
+u16: DType
+u32: DType
+u64: DType
 c64: DType  # complex64: two float32 components
 c128: DType  # complex128: two float64 components
 bool_: DType
@@ -34,12 +41,18 @@ DTypeLike: TypeAlias = DType | type[complex]
 class Array:
     """A dense N-dimensional DracoLIX array.
 
-    Promotion rules for binary operations (``+ - *``).
-      * bool and integer mix -> the integer type (i64 if either side is i64,
-        otherwise i32); ``True`` behaves as ``1``.
-      * any int/float mix -> float (f64 if either side is f64 or i64, else f32).
-      * any complex mix -> c64, widening to c128 when combined with f64, i64,
-        or another c128 operand (NumPy-compatible).
+    Promotion rules for binary operations (``+ - *``) follow NumPy.
+      * bool and any other dtype -> the other dtype; ``True`` behaves as ``1``.
+      * same-kind integers widen to the larger type (i8+i16 -> i16,
+        u8+u32 -> u32).
+      * mixed signed/unsigned width widens safely: i8+u8 -> i16,
+        i16+u16 -> i32, i32+u32 -> i64, u32+i64 -> i64; uint64 mixed with a
+        signed type -> f64.
+      * any int/float mix -> f32 when the float is f32 and the integer fits in
+        16 bits, otherwise f64 (e.g. i32+f32 -> f64).
+      * any complex mix -> c64 for single-precision components, widening to
+        c128 when a double-precision component is involved (complex64 + i32 ->
+        complex128).
       * ``/`` (true division) always returns f64 (or f32 when both sides are
         f32); integer division therefore returns floats, like NumPy. Complex
         operands keep their promoted complex dtype.
@@ -70,6 +83,8 @@ class Array:
     def __len__(self) -> int: ...
     def __bool__(self) -> bool:
         """Single-element arrays convert to the element; multi-element raises."""
+    def __index__(self) -> int:
+        """Single-element integer arrays convert to a Python ``int``."""
 
     def __iter__(self) -> Any: ...  # yields scalars over the flattened array
     def __getitem__(
@@ -118,6 +133,8 @@ class Array:
     def reshape(self, shape: int | Sequence[int]) -> Array: ...
     def transpose(self) -> Array: ...
     def tolist(self) -> Any: ...
+    def item(self, index: int | None = None) -> Scalar:
+        """Python scalar from the sole element, or from a flat C-order index."""
     def conj(self) -> Array:
         """Element-wise complex conjugate (identity for real dtypes)."""
     def conjugate(self) -> Array:
@@ -161,6 +178,17 @@ def arange(
     start: Scalar, stop: Scalar | None = None, step: Scalar | None = None
 ) -> Array:
     """Evenly spaced values; int args -> i64, any float arg -> f64."""
+
+def linspace(
+    start: Scalar,
+    stop: Scalar,
+    num: int = 50,
+    endpoint: bool = True,
+    dtype: DTypeLike | None = None,
+) -> Array:
+    """``num`` evenly spaced samples over ``[start, stop]`` (inclusive when
+    ``endpoint`` is true). Defaults to f64, or c128 for complex arguments;
+    an explicit integer dtype truncates the computed values like NumPy."""
 
 # --------------------------------------------------------------------------
 # Sparse matrices

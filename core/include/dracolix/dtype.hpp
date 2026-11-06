@@ -3,9 +3,11 @@
 // Data type enumeration and size utilities
 // Licensed under GPL-3.0+
 
+#include <cmath>
 #include <complex>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -58,8 +60,14 @@ inline bool is_implemented(DType dt) {
 	switch (dt) {
 	case DType::F32:
 	case DType::F64:
+	case DType::I8:
+	case DType::I16:
 	case DType::I32:
 	case DType::I64:
+	case DType::U8:
+	case DType::U16:
+	case DType::U32:
+	case DType::U64:
 	case DType::C64:
 	case DType::C128:
 	case DType::Bool:
@@ -147,10 +155,22 @@ inline std::string dtype_name(DType dt) {
 		return "f32";
 	case DType::F64:
 		return "f64";
+	case DType::I8:
+		return "i8";
+	case DType::I16:
+		return "i16";
 	case DType::I32:
 		return "i32";
 	case DType::I64:
 		return "i64";
+	case DType::U8:
+		return "u8";
+	case DType::U16:
+		return "u16";
+	case DType::U32:
+		return "u32";
+	case DType::U64:
+		return "u64";
 	case DType::C64:
 		return "c64";
 	case DType::C128:
@@ -172,11 +192,29 @@ template <> struct DTypeOf<float> {
 template <> struct DTypeOf<double> {
 	static constexpr DType value = DType::F64;
 };
+template <> struct DTypeOf<int8_t> {
+	static constexpr DType value = DType::I8;
+};
+template <> struct DTypeOf<int16_t> {
+	static constexpr DType value = DType::I16;
+};
 template <> struct DTypeOf<int32_t> {
 	static constexpr DType value = DType::I32;
 };
 template <> struct DTypeOf<int64_t> {
 	static constexpr DType value = DType::I64;
+};
+template <> struct DTypeOf<uint8_t> {
+	static constexpr DType value = DType::U8;
+};
+template <> struct DTypeOf<uint16_t> {
+	static constexpr DType value = DType::U16;
+};
+template <> struct DTypeOf<uint32_t> {
+	static constexpr DType value = DType::U32;
+};
+template <> struct DTypeOf<uint64_t> {
+	static constexpr DType value = DType::U64;
 };
 template <> struct DTypeOf<bool> {
 	static constexpr DType value = DType::Bool;
@@ -200,6 +238,19 @@ template <typename T> inline T conj_if_complex(T v) {
 		return std::conj(v);
 	} else {
 		return v;
+	}
+}
+
+// Absolute value that also works for unsigned integer types (where std::abs
+// would be ambiguous) and bool.
+template <typename T> inline auto abs_value(const T &v) {
+	using U = std::remove_cv_t<T>;
+	if constexpr (is_complex_v<U>) {
+		return std::abs(v);
+	} else if constexpr (std::is_unsigned_v<U>) {
+		return v;
+	} else {
+		return std::abs(v);
 	}
 }
 

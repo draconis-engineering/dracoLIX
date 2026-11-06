@@ -95,13 +95,13 @@ template <typename T> Array<real_type_t<T>> abs(const Array<T> &a) {
 	Array<R> out(a.shape());
 	if constexpr (is_complex_v<T>) {
 		for (size_t i = 0; i < a.size(); ++i)
-			out[i] = static_cast<R>(std::abs(a[i]));
+			out[i] = static_cast<R>(abs_value(a[i]));
 	} else if constexpr (std::is_same_v<T, bool>) {
 		for (size_t i = 0; i < a.size(); ++i)
 			out[i] = a[i];
 	} else {
 		for (size_t i = 0; i < a.size(); ++i)
-			out[i] = static_cast<R>(std::abs(a[i]));
+			out[i] = static_cast<R>(abs_value(a[i]));
 	}
 	return out;
 }

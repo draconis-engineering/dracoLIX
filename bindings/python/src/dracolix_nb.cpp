@@ -62,7 +62,10 @@ bool is_number(nb::handle h) noexcept { return num_kind(h) != NumKind::None; }
 struct DlxArray {
 	using Variant =
 		std::variant<dracolix::Array<float>, dracolix::Array<double>,
+					 dracolix::Array<int8_t>, dracolix::Array<int16_t>,
 					 dracolix::Array<int32_t>, dracolix::Array<int64_t>,
+					 dracolix::Array<uint8_t>, dracolix::Array<uint16_t>,
+					 dracolix::Array<uint32_t>, dracolix::Array<uint64_t>,
 					 dracolix::Array<std::complex<float>>,
 					 dracolix::Array<std::complex<double>>,
 					 dracolix::Array<bool>>;
@@ -160,10 +163,22 @@ nb::object dtype_singleton(dracolix::DType dt) {
 		return mod.attr("f32");
 	case dracolix::DType::F64:
 		return mod.attr("f64");
+	case dracolix::DType::I8:
+		return mod.attr("i8");
+	case dracolix::DType::I16:
+		return mod.attr("i16");
 	case dracolix::DType::I32:
 		return mod.attr("i32");
 	case dracolix::DType::I64:
 		return mod.attr("i64");
+	case dracolix::DType::U8:
+		return mod.attr("u8");
+	case dracolix::DType::U16:
+		return mod.attr("u16");
+	case dracolix::DType::U32:
+		return mod.attr("u32");
+	case dracolix::DType::U64:
+		return mod.attr("u64");
 	case dracolix::DType::C64:
 		return mod.attr("c64");
 	case dracolix::DType::C128:
@@ -185,8 +200,9 @@ std::optional<dracolix::DType> optional_dtype(nb::handle h) {
 		return dracolix::DType::C128;
 	if (!is_dtype(h))
 		throw nb::type_error(
-			"dtype must be one of dlx.f32, dlx.f64, dlx.i32, "
-			"dlx.i64, dlx.c64, dlx.c128, dlx.bool_, or complex");
+			"dtype must be one of dlx.f32, dlx.f64, dlx.i8, dlx.i16, "
+			"dlx.i32, dlx.i64, dlx.u8, dlx.u16, dlx.u32, dlx.u64, "
+			"dlx.c64, dlx.c128, dlx.bool_, or complex");
 	return nb::cast<DlxDType *>(h)->dt;
 }
 
@@ -219,6 +235,51 @@ template <typename T> nb::object scalar_to_py(T v) {
 	}
 }
 
+// Convert a Python scalar to an integer element type with NumPy-like
+// restrictions: floats must be integral, complex is rejected, and values
+// must fit the target type (no silent wrap-around).
+template <typename T> T integer_from_py(nb::handle h) {
+	static_assert(std::is_integral_v<T> && !std::is_same_v<T, bool>);
+	std::string name = dracolix::dtype_name(dracolix::DTypeOf<T>::value);
+	if (num_kind(h) == NumKind::Complex)
+		throw nb::type_error(("cannot convert complex to " + name).c_str());
+	if (num_kind(h) == NumKind::Float) {
+		double d = nb::cast<double>(h);
+		if (d != std::trunc(d))
+			throw nb::type_error(
+				("cannot convert non-integral float to " + name).c_str());
+		long double ld = (long double)d;
+		if (ld < (long double)std::numeric_limits<T>::min() ||
+			ld > (long double)std::numeric_limits<T>::max())
+			throw nb::value_error(("float out of range for " + name).c_str());
+		return (T)d;
+	}
+	if constexpr (std::is_signed_v<T>) {
+		long long v = nb::cast<long long>(h);
+		if ((long double)v < (long double)std::numeric_limits<T>::min() ||
+			(long double)v > (long double)std::numeric_limits<T>::max())
+			throw nb::value_error(("integer out of range for " + name).c_str());
+		return (T)v;
+	} else {
+		// PyLong_AsUnsignedLongLong rejects negative values (OverflowError)
+		// while nb::cast would surface an opaque "bad cast" RuntimeError.
+		unsigned long long v;
+		if (PyLong_Check(h.ptr())) {
+			v = PyLong_AsUnsignedLongLong(h.ptr());
+			if (PyErr_Occurred()) {
+				PyErr_Clear();
+				throw nb::value_error(
+					("integer out of range for " + name).c_str());
+			}
+		} else {
+			v = nb::cast<unsigned long long>(h);
+		}
+		if ((long double)v > (long double)std::numeric_limits<T>::max())
+			throw nb::value_error(("integer out of range for " + name).c_str());
+		return (T)v;
+	}
+}
+
 nb::object py_scalar_at(const DlxArray &a, int64_t offset) {
 	return std::visit(
 		[offset](const auto &arr) {
@@ -236,9 +297,19 @@ DlxArray scalar_slot(nb::handle h) {
 		return DlxArray(std::move(a));
 	}
 	case NumKind::Int: {
-		int64_t v = nb::cast<int64_t>(h);
+		// Python integers that do not fit int64 are represented as u64.
+		long long v = PyLong_AsLongLong(h.ptr());
+		if (v == -1 && PyErr_Occurred()) {
+			PyErr_Clear();
+			unsigned long long u = PyLong_AsUnsignedLongLong(h.ptr());
+			if (u == (unsigned long long)-1 && PyErr_Occurred())
+				throw nb::python_error();
+			dracolix::Array<uint64_t> a(std::vector<size_t>{1});
+			a[0] = (uint64_t)u;
+			return DlxArray(std::move(a));
+		}
 		dracolix::Array<int64_t> a(std::vector<size_t>{1});
-		a[0] = v;
+		a[0] = (int64_t)v;
 		return DlxArray(std::move(a));
 	}
 	case NumKind::Float: {
@@ -261,60 +332,128 @@ DlxArray scalar_slot(nb::handle h) {
 // ---------------------------------------------------------------------------
 // dtype promotion (rules documented in dracolix.pyi)
 // ---------------------------------------------------------------------------
-int64_t rank_of(dracolix::DType dt) {
-	switch (dt) {
-	case dracolix::DType::Bool:
-		return 0;
-	case dracolix::DType::I32:
-		return 1;
-	case dracolix::DType::I64:
-		return 2;
-	case dracolix::DType::F32:
-		return 3;
-	case dracolix::DType::F64:
-		return 4;
-	case dracolix::DType::C64:
-		return 5;
-	case dracolix::DType::C128:
-		return 6;
-	default:
-		throw nb::type_error("unsupported dtype");
-	}
-}
-
 bool is_complex_dtype(dracolix::DType d) {
 	return d == dracolix::DType::C64 || d == dracolix::DType::C128;
 }
 
-dracolix::DType promote_pair(dracolix::DType a, dracolix::DType b) {
-	if (is_complex_dtype(a) || is_complex_dtype(b)) {
-		// Component precision: complex64 is float-precision, complex128 double.
-		// Anything that needs double precision (i64/f64) widens c64 to c128.
-		auto component_rank = [](dracolix::DType d) -> int {
-			switch (d) {
-			case dracolix::DType::C128:
-			case dracolix::DType::F64:
-			case dracolix::DType::I64:
-				return 4; // double precision
-			default:
-				return 3; // float precision (f32, i32, bool, c64)
-			}
-		};
-		int cr = std::max(component_rank(a), component_rank(b));
-		return cr >= 4 ? dracolix::DType::C128 : dracolix::DType::C64;
+bool is_unsigned_dtype(dracolix::DType d) {
+	switch (d) {
+	case dracolix::DType::U8:
+	case dracolix::DType::U16:
+	case dracolix::DType::U32:
+	case dracolix::DType::U64:
+		return true;
+	default:
+		return false;
 	}
-	bool a_f = rank_of(a) >= rank_of(dracolix::DType::F32);
-	bool b_f = rank_of(b) >= rank_of(dracolix::DType::F32);
+}
+
+bool is_signed_dtype(dracolix::DType d) {
+	switch (d) {
+	case dracolix::DType::I8:
+	case dracolix::DType::I16:
+	case dracolix::DType::I32:
+	case dracolix::DType::I64:
+		return true;
+	default:
+		return false;
+	}
+}
+
+// Width in bits for integer dtypes (0 for non-integers; bool counts as 8).
+int int_bits(dracolix::DType d) {
+	switch (d) {
+	case dracolix::DType::Bool:
+		return 8;
+	case dracolix::DType::I8:
+	case dracolix::DType::U8:
+		return 8;
+	case dracolix::DType::I16:
+	case dracolix::DType::U16:
+		return 16;
+	case dracolix::DType::I32:
+	case dracolix::DType::U32:
+		return 32;
+	case dracolix::DType::I64:
+	case dracolix::DType::U64:
+		return 64;
+	default:
+		return 0;
+	}
+}
+
+dracolix::DType signed_int_of_bits(int bits) {
+	switch (bits) {
+	case 8:
+		return dracolix::DType::I8;
+	case 16:
+		return dracolix::DType::I16;
+	case 32:
+		return dracolix::DType::I32;
+	case 64:
+		return dracolix::DType::I64;
+	default:
+		return dracolix::DType::Void;
+	}
+}
+
+// NumPy-compatible promotion for two non-complex dtypes.
+dracolix::DType promote_real_pair(dracolix::DType a, dracolix::DType b) {
+	if (a == b)
+		return a;
+	if (a == dracolix::DType::Bool)
+		return b;
+	if (b == dracolix::DType::Bool)
+		return a;
+	bool a_f = a == dracolix::DType::F32 || a == dracolix::DType::F64;
+	bool b_f = b == dracolix::DType::F32 || b == dracolix::DType::F64;
 	if (a_f || b_f) {
 		if (a == dracolix::DType::F64 || b == dracolix::DType::F64)
 			return dracolix::DType::F64;
-		if (a == dracolix::DType::I64 || b == dracolix::DType::I64)
-			return dracolix::DType::F64; // avoid int64 -> f32 precision loss
-		return dracolix::DType::F32;
+		// One side is f32 and the other is an integer: f32 holds integers up
+		// to 16 bits exactly; wider integers need f64.
+		dracolix::DType id = a_f ? b : a;
+		return int_bits(id) <= 16 ? dracolix::DType::F32
+								  : dracolix::DType::F64;
 	}
-	if (a == dracolix::DType::I64 || b == dracolix::DType::I64)
-		return dracolix::DType::I64;
-	return dracolix::DType::I32;
+	bool au = is_unsigned_dtype(a), bu = is_unsigned_dtype(b);
+	int aw = int_bits(a), bw = int_bits(b);
+	if (au == bu)
+		return aw >= bw ? a : b;
+	// Mixed signed/unsigned. If the unsigned type is narrower, the signed
+	// type of that width covers both ranges; otherwise widen to the next
+	// signed type, falling back to f64 for uint64 vs any signed type.
+	int uw = au ? aw : bw;
+	int sw = au ? bw : aw;
+	if (uw < sw)
+		return signed_int_of_bits(sw);
+	if (sw < 64) {
+		dracolix::DType widened = signed_int_of_bits(std::max(uw, sw) * 2);
+		if (widened != dracolix::DType::Void)
+			return widened;
+	}
+	return dracolix::DType::F64;
+}
+
+dracolix::DType promote_pair(dracolix::DType a, dracolix::DType b) {
+	if (a == b)
+		return a;
+	bool ac = is_complex_dtype(a), bc = is_complex_dtype(b);
+	if (ac || bc) {
+		if (ac && bc)
+			return (a == dracolix::DType::C128 || b == dracolix::DType::C128)
+					   ? dracolix::DType::C128
+					   : dracolix::DType::C64;
+		dracolix::DType c = ac ? a : b;
+		dracolix::DType other = ac ? b : a;
+		dracolix::DType component =
+			c == dracolix::DType::C128 ? dracolix::DType::F64
+									   : dracolix::DType::F32;
+		dracolix::DType r = promote_real_pair(component, other);
+		return r == dracolix::DType::F32 ? dracolix::DType::C64
+										 : dracolix::DType::C128;
+	}
+	return promote_real_pair(a, b);
 }
 
 // ---------------------------------------------------------------------------
@@ -332,10 +471,22 @@ DlxArray cast_dtype(const DlxArray &a, dracolix::DType dt) {
 		return cast_cpp<float>(a);
 	case dracolix::DType::F64:
 		return cast_cpp<double>(a);
+	case dracolix::DType::I8:
+		return cast_cpp<int8_t>(a);
+	case dracolix::DType::I16:
+		return cast_cpp<int16_t>(a);
 	case dracolix::DType::I32:
 		return cast_cpp<int32_t>(a);
 	case dracolix::DType::I64:
 		return cast_cpp<int64_t>(a);
+	case dracolix::DType::U8:
+		return cast_cpp<uint8_t>(a);
+	case dracolix::DType::U16:
+		return cast_cpp<uint16_t>(a);
+	case dracolix::DType::U32:
+		return cast_cpp<uint32_t>(a);
+	case dracolix::DType::U64:
+		return cast_cpp<uint64_t>(a);
 	case dracolix::DType::C64:
 		return cast_cpp<std::complex<float>>(a);
 	case dracolix::DType::C128:
@@ -435,13 +586,14 @@ enum class BinOp { Add, Sub, Mul, Div, Pow, Eq, Ne };
 // negative integer exponents), while floating/complex arrays use std::pow.
 template <typename R> R pow_scalar(R base, R exponent) {
 	if constexpr (std::is_integral_v<R>) {
-		int64_t e = static_cast<int64_t>(exponent);
-		if (e < 0)
-			throw nb::value_error(
-				"integers to negative integer powers are not allowed");
+		if constexpr (std::is_signed_v<R>) {
+			if (static_cast<int64_t>(exponent) < 0)
+				throw nb::value_error(
+					"integers to negative integer powers are not allowed");
+		}
 		R result = R(1);
 		R factor = base;
-		uint64_t n = static_cast<uint64_t>(e);
+		uint64_t n = static_cast<uint64_t>(exponent);
 		while (n != 0) {
 			if ((n & 1u) != 0)
 				result *= factor;
@@ -511,10 +663,22 @@ DlxArray bin_switch(dracolix::DType r, const DlxArray &A, const DlxArray &B,
 		return bin_typed<float>(A, B, op);
 	case dracolix::DType::F64:
 		return bin_typed<double>(A, B, op);
+	case dracolix::DType::I8:
+		return bin_typed<int8_t>(A, B, op);
+	case dracolix::DType::I16:
+		return bin_typed<int16_t>(A, B, op);
 	case dracolix::DType::I32:
 		return bin_typed<int32_t>(A, B, op);
 	case dracolix::DType::I64:
 		return bin_typed<int64_t>(A, B, op);
+	case dracolix::DType::U8:
+		return bin_typed<uint8_t>(A, B, op);
+	case dracolix::DType::U16:
+		return bin_typed<uint16_t>(A, B, op);
+	case dracolix::DType::U32:
+		return bin_typed<uint32_t>(A, B, op);
+	case dracolix::DType::U64:
+		return bin_typed<uint64_t>(A, B, op);
 	case dracolix::DType::C64:
 		return bin_typed<std::complex<float>>(A, B, op);
 	case dracolix::DType::C128:
@@ -544,8 +708,13 @@ nb::object dlx_bin_op(nb::object x, nb::object y, BinOp op) {
 
 	dracolix::DType ra = A->dtype(), rb = B->dtype();
 	dracolix::DType r = promote_pair(ra, rb);
-	if (r == dracolix::DType::Bool)
-		return nb::not_implemented(); // unreachable: promotions never stay bool
+	if (r == dracolix::DType::Bool) {
+		// Bool never participates in arithmetic (NumPy raises), but equality
+		// and inequality of two bool arrays yield a bool array.
+		if (op == BinOp::Eq || op == BinOp::Ne)
+			return nb::cast<DlxArray>(bin_typed<bool>(*A, *B, op));
+		return nb::not_implemented();
+	}
 	if (op == BinOp::Div && r != dracolix::DType::C64 &&
 		r != dracolix::DType::C128) {
 		// __truediv__: NumPy-like semantics (int/int -> f64, f32/f32 -> f32).
@@ -824,7 +993,7 @@ nb::object dlx_setitem(DlxArray &self, nb::object key, nb::object val) {
 			} else if constexpr (dracolix::is_complex_v<T>) {
 				v = static_cast<T>(to_complex(val));
 			} else if constexpr (std::is_integral_v<T>) {
-				v = (T)nb::cast<int64_t>(val);
+				v = integer_from_py<T>(val);
 			} else {
 				if (num_kind(val) == NumKind::Complex)
 					throw nb::type_error(
@@ -849,10 +1018,22 @@ const char *buffer_format(dracolix::DType dt) {
 		return "f";
 	case dracolix::DType::F64:
 		return "d";
+	case dracolix::DType::I8:
+		return "b";
+	case dracolix::DType::I16:
+		return "h";
 	case dracolix::DType::I32:
 		return "i";
 	case dracolix::DType::I64:
 		return "q";
+	case dracolix::DType::U8:
+		return "B";
+	case dracolix::DType::U16:
+		return "H";
+	case dracolix::DType::U32:
+		return "I";
+	case dracolix::DType::U64:
+		return "Q";
 	case dracolix::DType::C64:
 		return "Zf"; // PEP 3118 complex64 (two floats)
 	case dracolix::DType::C128:
@@ -1024,7 +1205,7 @@ void install_buffer_slots() {
 dracolix::DType infer_format_dtype(const char *fmt, Py_ssize_t itemsize) {
 	if (fmt == nullptr || *fmt == 0) {
 		if (itemsize == 1)
-			return dracolix::DType::I32;
+			return dracolix::DType::U8;
 		return dracolix::DType::Void;
 	}
 	switch (*fmt) {
@@ -1033,20 +1214,28 @@ dracolix::DType infer_format_dtype(const char *fmt, Py_ssize_t itemsize) {
 	case 'd':
 		return dracolix::DType::F64;
 	case 'q':
+		return dracolix::DType::I64;
 	case 'Q':
+		return dracolix::DType::U64;
 	case 'L':
 	case 'N':
-		return dracolix::DType::I64;
+		// unsigned long is 32-bit on Windows, unlike LP64 platforms.
+		return itemsize >= 8 ? dracolix::DType::U64 : dracolix::DType::U32;
 	case 'i':
 	case 'l':
 		return itemsize >= 8 ? dracolix::DType::I64 : dracolix::DType::I32;
-	case 'b':
-	case 'h':
-	case 'B':
-	case 'H':
-	case 'I':
 	case 'n':
-		return dracolix::DType::I32;
+		return itemsize >= 8 ? dracolix::DType::I64 : dracolix::DType::I32;
+	case 'b':
+		return dracolix::DType::I8;
+	case 'h':
+		return dracolix::DType::I16;
+	case 'B':
+		return dracolix::DType::U8;
+	case 'H':
+		return dracolix::DType::U16;
+	case 'I':
+		return dracolix::DType::U32;
 	case 'e':
 		return dracolix::DType::F32;
 	case 'Z':
@@ -1093,13 +1282,19 @@ double read_double_at(const char *p, char tag, Py_ssize_t itemsize) {
 	case '?':
 		return *(const bool *)p ? 1.0 : 0.0;
 	default: {
+		bool is_unsigned = (tag == 'B' || tag == 'H' || tag == 'I' ||
+							tag == 'L' || tag == 'N' || tag == 'Q');
 		if (itemsize == 1)
-			return (double)(*(const int8_t *)p);
+			return is_unsigned ? (double)(*(const uint8_t *)p)
+							   : (double)(*(const int8_t *)p);
 		if (itemsize == 2)
-			return (double)(*(const int16_t *)p);
+			return is_unsigned ? (double)(*(const uint16_t *)p)
+							   : (double)(*(const int16_t *)p);
 		if (itemsize == 4)
-			return (double)(*(const int32_t *)p);
-		return (double)(*(const int64_t *)p);
+			return is_unsigned ? (double)(*(const uint32_t *)p)
+							   : (double)(*(const int32_t *)p);
+		return is_unsigned ? (double)(*(const uint64_t *)p)
+						   : (double)(*(const int64_t *)p);
 	}
 	}
 }
@@ -1125,56 +1320,64 @@ int64_t read_int_at(const char *p, char tag, Py_ssize_t itemsize) {
 					   : (*(const int64_t *)p);
 }
 
-template <typename T> T from_raw(const char *p, char tag, Py_ssize_t itemsize);
-
-template <>
-float from_raw<float>(const char *p, char tag, Py_ssize_t itemsize) {
-	if (tag == 'd' || tag == 'e' || tag == '?' || tag == 'f')
-		return (float)read_double_at(p, tag, itemsize);
-	return (float)read_int_at(p, tag, itemsize);
-}
-template <>
-double from_raw<double>(const char *p, char tag, Py_ssize_t itemsize) {
-	return read_double_at(p, tag, itemsize);
-}
-template <>
-int32_t from_raw<int32_t>(const char *p, char tag, Py_ssize_t itemsize) {
-	return (int32_t)read_int_at(p, tag, itemsize);
-}
-template <>
-int64_t from_raw<int64_t>(const char *p, char tag, Py_ssize_t itemsize) {
-	return read_int_at(p, tag, itemsize);
-}
-template <>
-std::complex<float> from_raw<std::complex<float>>(const char *p, char tag,
-												  Py_ssize_t itemsize) {
+uint64_t read_uint_at(const char *p, char tag, Py_ssize_t itemsize) {
 	if (tag == 'Z') {
-		if (itemsize == 16) {
-			const double *q = (const double *)p;
-			return {(float)q[0], (float)q[1]};
-		}
-		const float *q = (const float *)p;
-		return {q[0], q[1]};
+		double d = read_double_at(p, tag, itemsize);
+		if (d <= 0.0)
+			return 0;
+		if (d >= 18446744073709551616.0)
+			return std::numeric_limits<uint64_t>::max();
+		return (uint64_t)d;
 	}
-	return {(float)read_double_at(p, tag, itemsize), 0.0f};
-}
-template <>
-std::complex<double> from_raw<std::complex<double>>(const char *p, char tag,
-													Py_ssize_t itemsize) {
-	if (tag == 'Z') {
-		if (itemsize == 8) {
-			const float *q = (const float *)p;
-			return {(double)q[0], (double)q[1]};
-		}
-		const double *q = (const double *)p;
-		return {q[0], q[1]};
-	}
-	return {read_double_at(p, tag, itemsize), 0.0};
-}
-template <> bool from_raw<bool>(const char *p, char tag, Py_ssize_t itemsize) {
+	bool is_unsigned = (tag == 'B' || tag == 'H' || tag == 'I' ||
+						tag == 'L' || tag == 'N' || tag == 'Q');
 	if (tag == '?')
-		return *(const bool *)p;
-	return read_double_at(p, tag, itemsize) != 0.0;
+		return *(const bool *)p ? 1 : 0;
+	if (tag == 'f' || tag == 'd' || tag == 'e') {
+		double d = read_double_at(p, tag, itemsize);
+		if (d <= 0.0)
+			return 0;
+		if (d >= 18446744073709551616.0)
+			return std::numeric_limits<uint64_t>::max();
+		return (uint64_t)d;
+	}
+	if (is_unsigned) {
+		if (itemsize == 1)
+			return (uint64_t)(*(const uint8_t *)p);
+		if (itemsize == 2)
+			return (uint64_t)(*(const uint16_t *)p);
+		if (itemsize == 4)
+			return (uint64_t)(*(const uint32_t *)p);
+		return *(const uint64_t *)p;
+	}
+	return (uint64_t)read_int_at(p, tag, itemsize);
+}
+
+template <typename T>
+T from_raw(const char *p, char tag, Py_ssize_t itemsize) {
+	if constexpr (dracolix::is_complex_v<T>) {
+		using R = typename T::value_type;
+		if (tag == 'Z') {
+			Py_ssize_t comp = itemsize / 2;
+			if (comp == 8) {
+				const double *q = (const double *)p;
+				return {static_cast<R>(q[0]), static_cast<R>(q[1])};
+			}
+			const float *q = (const float *)p;
+			return {static_cast<R>(q[0]), static_cast<R>(q[1])};
+		}
+		return {static_cast<R>(read_double_at(p, tag, itemsize)), R(0)};
+	} else if constexpr (std::is_same_v<T, bool>) {
+		if (tag == '?')
+			return *(const bool *)p;
+		return read_double_at(p, tag, itemsize) != 0.0;
+	} else if constexpr (std::is_integral_v<T> && std::is_unsigned_v<T>) {
+		return (T)read_uint_at(p, tag, itemsize);
+	} else if constexpr (std::is_integral_v<T>) {
+		return (T)read_int_at(p, tag, itemsize);
+	} else {
+		return (T)read_double_at(p, tag, itemsize);
+	}
 }
 
 template <typename T>
@@ -1241,10 +1444,22 @@ DlxArray from_buffer(nb::object o, std::optional<dracolix::DType> dt) {
 		return buffer_to_array<float>(view, tag);
 	case dracolix::DType::F64:
 		return buffer_to_array<double>(view, tag);
+	case dracolix::DType::I8:
+		return buffer_to_array<int8_t>(view, tag);
+	case dracolix::DType::I16:
+		return buffer_to_array<int16_t>(view, tag);
 	case dracolix::DType::I32:
 		return buffer_to_array<int32_t>(view, tag);
 	case dracolix::DType::I64:
 		return buffer_to_array<int64_t>(view, tag);
+	case dracolix::DType::U8:
+		return buffer_to_array<uint8_t>(view, tag);
+	case dracolix::DType::U16:
+		return buffer_to_array<uint16_t>(view, tag);
+	case dracolix::DType::U32:
+		return buffer_to_array<uint32_t>(view, tag);
+	case dracolix::DType::U64:
+		return buffer_to_array<uint64_t>(view, tag);
 	case dracolix::DType::C64:
 		return buffer_to_array<std::complex<float>>(view, tag);
 	case dracolix::DType::C128:
@@ -1313,66 +1528,23 @@ dracolix::DType infer_list_dtype(bool any_float, bool any_int, bool any_bool,
 }
 
 template <typename T>
-void fill_leaf(dracolix::Array<T> &out, size_t i, nb::object leaf);
-
-template <>
-void fill_leaf<bool>(dracolix::Array<bool> &out, size_t i, nb::object leaf) {
-	out[i] = nb::cast<bool>(leaf);
-}
-template <>
-void fill_leaf<int32_t>(dracolix::Array<int32_t> &out, size_t i,
-						nb::object leaf) {
-	if (num_kind(leaf) == NumKind::Complex)
-		throw nb::type_error("cannot convert complex to integer dtype");
-	if (num_kind(leaf) == NumKind::Float) {
-		double d = nb::cast<double>(leaf);
-		if (d != std::trunc(d))
-			throw nb::type_error(
-				"cannot convert non-integral float to integer dtype");
-		out[i] = (int32_t)d;
+void fill_leaf(dracolix::Array<T> &out, size_t i, nb::object leaf) {
+	if constexpr (std::is_same_v<T, bool>) {
+		if (num_kind(leaf) == NumKind::Complex)
+			throw nb::type_error("cannot convert complex to bool dtype");
+		out[i] = num_kind(leaf) == NumKind::Bool ? nb::cast<bool>(leaf)
+												 : to_double(leaf) != 0.0;
+	} else if constexpr (dracolix::is_complex_v<T>) {
+		out[i] = static_cast<T>(to_complex(leaf));
+	} else if constexpr (std::is_integral_v<T>) {
+		out[i] = integer_from_py<T>(leaf);
 	} else {
-		out[i] = (int32_t)nb::cast<int64_t>(leaf);
+		// Like NumPy's list conversion, a complex leaf cannot be stored
+		// silently in a real dtype (use astype() to drop the imaginary part).
+		if (num_kind(leaf) == NumKind::Complex)
+			throw nb::type_error("cannot convert complex to float dtype");
+		out[i] = (T)to_double(leaf);
 	}
-}
-template <>
-void fill_leaf<int64_t>(dracolix::Array<int64_t> &out, size_t i,
-						nb::object leaf) {
-	if (num_kind(leaf) == NumKind::Complex)
-		throw nb::type_error("cannot convert complex to integer dtype");
-	if (num_kind(leaf) == NumKind::Float) {
-		double d = nb::cast<double>(leaf);
-		if (d != std::trunc(d))
-			throw nb::type_error(
-				"cannot convert non-integral float to integer dtype");
-		out[i] = (int64_t)d;
-	} else {
-		out[i] = nb::cast<int64_t>(leaf);
-	}
-}
-template <>
-void fill_leaf<float>(dracolix::Array<float> &out, size_t i, nb::object leaf) {
-	// Like NumPy's list conversion, a complex leaf cannot be stored silently
-	// in a real dtype (use astype() to explicitly discard the imaginary part).
-	if (num_kind(leaf) == NumKind::Complex)
-		throw nb::type_error("cannot convert complex to float dtype");
-	out[i] = (float)to_double(leaf);
-}
-template <>
-void fill_leaf<double>(dracolix::Array<double> &out, size_t i,
-					   nb::object leaf) {
-	if (num_kind(leaf) == NumKind::Complex)
-		throw nb::type_error("cannot convert complex to float dtype");
-	out[i] = to_double(leaf);
-}
-template <>
-void fill_leaf<std::complex<float>>(dracolix::Array<std::complex<float>> &out,
-									size_t i, nb::object leaf) {
-	out[i] = static_cast<std::complex<float>>(to_complex(leaf));
-}
-template <>
-void fill_leaf<std::complex<double>>(dracolix::Array<std::complex<double>> &out,
-									 size_t i, nb::object leaf) {
-	out[i] = to_complex(leaf);
 }
 
 DlxArray from_list(nb::object o, std::optional<dracolix::DType> dt) {
@@ -1400,6 +1572,18 @@ DlxArray from_list(nb::object o, std::optional<dracolix::DType> dt) {
 			fill_leaf<double>(out, i, leaves[i]);
 		return DlxArray(std::move(out));
 	}
+	case dracolix::DType::I8: {
+		dracolix::Array<int8_t> out(shape);
+		for (size_t i = 0; i < leaves.size(); ++i)
+			fill_leaf<int8_t>(out, i, leaves[i]);
+		return DlxArray(std::move(out));
+	}
+	case dracolix::DType::I16: {
+		dracolix::Array<int16_t> out(shape);
+		for (size_t i = 0; i < leaves.size(); ++i)
+			fill_leaf<int16_t>(out, i, leaves[i]);
+		return DlxArray(std::move(out));
+	}
 	case dracolix::DType::I32: {
 		dracolix::Array<int32_t> out(shape);
 		for (size_t i = 0; i < leaves.size(); ++i)
@@ -1410,6 +1594,30 @@ DlxArray from_list(nb::object o, std::optional<dracolix::DType> dt) {
 		dracolix::Array<int64_t> out(shape);
 		for (size_t i = 0; i < leaves.size(); ++i)
 			fill_leaf<int64_t>(out, i, leaves[i]);
+		return DlxArray(std::move(out));
+	}
+	case dracolix::DType::U8: {
+		dracolix::Array<uint8_t> out(shape);
+		for (size_t i = 0; i < leaves.size(); ++i)
+			fill_leaf<uint8_t>(out, i, leaves[i]);
+		return DlxArray(std::move(out));
+	}
+	case dracolix::DType::U16: {
+		dracolix::Array<uint16_t> out(shape);
+		for (size_t i = 0; i < leaves.size(); ++i)
+			fill_leaf<uint16_t>(out, i, leaves[i]);
+		return DlxArray(std::move(out));
+	}
+	case dracolix::DType::U32: {
+		dracolix::Array<uint32_t> out(shape);
+		for (size_t i = 0; i < leaves.size(); ++i)
+			fill_leaf<uint32_t>(out, i, leaves[i]);
+		return DlxArray(std::move(out));
+	}
+	case dracolix::DType::U64: {
+		dracolix::Array<uint64_t> out(shape);
+		for (size_t i = 0; i < leaves.size(); ++i)
+			fill_leaf<uint64_t>(out, i, leaves[i]);
 		return DlxArray(std::move(out));
 	}
 	case dracolix::DType::C64: {
@@ -1487,39 +1695,16 @@ std::vector<size_t> parse_shape(nb::object o) {
 	throw nb::type_error("shape must be an int or a sequence of ints");
 }
 
-template <typename T> T scalar_to_dtype(nb::handle h);
-template <> float scalar_to_dtype<float>(nb::handle h) {
-	return (float)to_double(h);
-}
-template <> double scalar_to_dtype<double>(nb::handle h) {
-	return to_double(h);
-}
-template <> int32_t scalar_to_dtype<int32_t>(nb::handle h) {
-	if (num_kind(h) == NumKind::Complex)
-		throw nb::type_error("cannot convert complex to i32");
-	double d = nb::cast<double>(h);
-	if (d != std::trunc(d))
-		throw nb::type_error("cannot convert non-integral float to i32");
-	return (int32_t)nb::cast<int64_t>(h);
-}
-template <> int64_t scalar_to_dtype<int64_t>(nb::handle h) {
-	if (num_kind(h) == NumKind::Complex)
-		throw nb::type_error("cannot convert complex to i64");
-	double d = nb::cast<double>(h);
-	if (d != std::trunc(d))
-		throw nb::type_error("cannot convert non-integral float to i64");
-	return nb::cast<int64_t>(h);
-}
-template <>
-std::complex<float> scalar_to_dtype<std::complex<float>>(nb::handle h) {
-	return static_cast<std::complex<float>>(to_complex(h));
-}
-template <>
-std::complex<double> scalar_to_dtype<std::complex<double>>(nb::handle h) {
-	return to_complex(h);
-}
-template <> bool scalar_to_dtype<bool>(nb::handle h) {
-	return nb::cast<bool>(h);
+template <typename T> T scalar_to_dtype(nb::handle h) {
+	if constexpr (std::is_same_v<T, bool>) {
+		return nb::cast<bool>(h);
+	} else if constexpr (dracolix::is_complex_v<T>) {
+		return static_cast<T>(to_complex(h));
+	} else if constexpr (std::is_integral_v<T>) {
+		return integer_from_py<T>(h);
+	} else {
+		return (T)to_double(h);
+	}
 }
 
 template <typename T>
@@ -1539,10 +1724,22 @@ DlxArray dlx_zeros(nb::object shape, nb::object dtype) {
 		return DlxArray(dracolix::Array<float>::zeros(s));
 	case dracolix::DType::F64:
 		return DlxArray(dracolix::Array<double>::zeros(s));
+	case dracolix::DType::I8:
+		return DlxArray(dracolix::Array<int8_t>::zeros(s));
+	case dracolix::DType::I16:
+		return DlxArray(dracolix::Array<int16_t>::zeros(s));
 	case dracolix::DType::I32:
 		return DlxArray(dracolix::Array<int32_t>::zeros(s));
 	case dracolix::DType::I64:
 		return DlxArray(dracolix::Array<int64_t>::zeros(s));
+	case dracolix::DType::U8:
+		return DlxArray(dracolix::Array<uint8_t>::zeros(s));
+	case dracolix::DType::U16:
+		return DlxArray(dracolix::Array<uint16_t>::zeros(s));
+	case dracolix::DType::U32:
+		return DlxArray(dracolix::Array<uint32_t>::zeros(s));
+	case dracolix::DType::U64:
+		return DlxArray(dracolix::Array<uint64_t>::zeros(s));
 	case dracolix::DType::C64:
 		return DlxArray(dracolix::Array<std::complex<float>>::zeros(s));
 	case dracolix::DType::C128:
@@ -1563,10 +1760,22 @@ DlxArray dlx_ones(nb::object shape, nb::object dtype) {
 		return DlxArray(dracolix::Array<float>::ones(s));
 	case dracolix::DType::F64:
 		return DlxArray(dracolix::Array<double>::ones(s));
+	case dracolix::DType::I8:
+		return DlxArray(dracolix::Array<int8_t>::ones(s));
+	case dracolix::DType::I16:
+		return DlxArray(dracolix::Array<int16_t>::ones(s));
 	case dracolix::DType::I32:
 		return DlxArray(dracolix::Array<int32_t>::ones(s));
 	case dracolix::DType::I64:
 		return DlxArray(dracolix::Array<int64_t>::ones(s));
+	case dracolix::DType::U8:
+		return DlxArray(dracolix::Array<uint8_t>::ones(s));
+	case dracolix::DType::U16:
+		return DlxArray(dracolix::Array<uint16_t>::ones(s));
+	case dracolix::DType::U32:
+		return DlxArray(dracolix::Array<uint32_t>::ones(s));
+	case dracolix::DType::U64:
+		return DlxArray(dracolix::Array<uint64_t>::ones(s));
 	case dracolix::DType::C64:
 		return DlxArray(dracolix::Array<std::complex<float>>::ones(s));
 	case dracolix::DType::C128:
@@ -1598,10 +1807,22 @@ DlxArray dlx_full(nb::object shape, nb::object value, nb::object dtype) {
 		return make_filled<float>(s, scalar_to_dtype<float>(value));
 	case dracolix::DType::F64:
 		return make_filled<double>(s, scalar_to_dtype<double>(value));
+	case dracolix::DType::I8:
+		return make_filled<int8_t>(s, scalar_to_dtype<int8_t>(value));
+	case dracolix::DType::I16:
+		return make_filled<int16_t>(s, scalar_to_dtype<int16_t>(value));
 	case dracolix::DType::I32:
 		return make_filled<int32_t>(s, scalar_to_dtype<int32_t>(value));
 	case dracolix::DType::I64:
 		return make_filled<int64_t>(s, scalar_to_dtype<int64_t>(value));
+	case dracolix::DType::U8:
+		return make_filled<uint8_t>(s, scalar_to_dtype<uint8_t>(value));
+	case dracolix::DType::U16:
+		return make_filled<uint16_t>(s, scalar_to_dtype<uint16_t>(value));
+	case dracolix::DType::U32:
+		return make_filled<uint32_t>(s, scalar_to_dtype<uint32_t>(value));
+	case dracolix::DType::U64:
+		return make_filled<uint64_t>(s, scalar_to_dtype<uint64_t>(value));
 	case dracolix::DType::C64:
 		return make_filled<std::complex<float>>(
 			s, scalar_to_dtype<std::complex<float>>(value));
@@ -1666,6 +1887,64 @@ DlxArray dlx_arange(nb::object start, nb::object stop, nb::object step) {
 	for (int64_t i = 0; i < n64; ++i)
 		a[(size_t)i] = d0 + (double)i * d2;
 	return DlxArray(std::move(a));
+}
+
+DlxArray dlx_linspace(nb::object start, nb::object stop, nb::object num,
+					  nb::object endpoint, nb::object dtype) {
+	if (!is_number(start) || !is_number(stop))
+		throw nb::type_error("linspace arguments must be numbers");
+	int64_t n = num.is_none() ? 50 : nb::cast<int64_t>(num);
+	if (n < 0)
+		throw nb::value_error("number of samples must be non-negative");
+	bool ep = endpoint.is_none() ? true : nb::cast<bool>(endpoint);
+	std::optional<dracolix::DType> dt = optional_dtype(dtype);
+	bool complex_result =
+		num_kind(start) == NumKind::Complex ||
+		num_kind(stop) == NumKind::Complex ||
+		(dt && is_complex_dtype(*dt));
+
+	if (n == 0) {
+		DlxArray base =
+			complex_result
+				? DlxArray(dracolix::Array<std::complex<double>>(
+					  std::vector<size_t>{0}))
+				: DlxArray(dracolix::Array<double>(std::vector<size_t>{0}));
+		return dt ? cast_dtype(base, *dt) : base;
+	}
+
+	if (complex_result) {
+		std::complex<double> a = to_complex(start);
+		std::complex<double> b = to_complex(stop);
+		dracolix::Array<std::complex<double>> out(std::vector<size_t>{(size_t)n});
+		if (n == 1) {
+			out[0] = a;
+		} else {
+			double denom = ep ? (double)(n - 1) : (double)n;
+			std::complex<double> step = (b - a) / denom;
+			for (int64_t i = 0; i < n; ++i)
+				out[(size_t)i] = a + (double)i * step;
+			if (ep)
+				out[(size_t)(n - 1)] = b;
+		}
+		DlxArray base(std::move(out));
+		return dt ? cast_dtype(base, *dt) : base;
+	}
+
+	double a = to_double(start);
+	double b = to_double(stop);
+	dracolix::Array<double> out(std::vector<size_t>{(size_t)n});
+	if (n == 1) {
+		out[0] = a;
+	} else {
+		double denom = ep ? (double)(n - 1) : (double)n;
+		double step = (b - a) / denom;
+		for (int64_t i = 0; i < n; ++i)
+			out[(size_t)i] = a + (double)i * step;
+		if (ep)
+			out[(size_t)(n - 1)] = b;
+	}
+	DlxArray base(std::move(out));
+	return dt ? cast_dtype(base, *dt) : base;
 }
 
 // ---------------------------------------------------------------------------
@@ -1893,6 +2172,43 @@ DlxArray dlx_angle(const DlxArray &a) {
 }
 
 // ---------------------------------------------------------------------------
+// item / __index__
+// ---------------------------------------------------------------------------
+nb::object dlx_item(const DlxArray &a, nb::object index) {
+	size_t off = 0;
+	if (index.is_none()) {
+		if (a.size() != 1)
+			throw nb::value_error(
+				"can only convert an array of size 1 to a Python scalar");
+	} else {
+		int64_t i = nb::cast<int64_t>(index);
+		int64_t n = (int64_t)a.size();
+		if (i < 0)
+			i += n;
+		if (i < 0 || i >= n)
+			throw nb::index_error("index out of bounds");
+		size_t rem = (size_t)i;
+		for (int d = (int)a.ndim() - 1; d >= 0; --d) {
+			off += (rem % a.shape()[(size_t)d]) * a.strides()[(size_t)d];
+			rem /= a.shape()[(size_t)d];
+		}
+	}
+	return py_scalar_at(a, (int64_t)off);
+}
+
+nb::object dlx_index(const DlxArray &a) {
+	if (a.size() != 1)
+		throw nb::type_error(
+			"only size-1 arrays can be converted to Python scalars");
+	dracolix::DType dt = a.dtype();
+	if (dt == dracolix::DType::F32 || dt == dracolix::DType::F64 ||
+		is_complex_dtype(dt))
+		throw nb::type_error(
+			"only integer arrays can be converted to a Python int");
+	return py_scalar_at(a, 0);
+}
+
+// ---------------------------------------------------------------------------
 // tolist / repr
 // ---------------------------------------------------------------------------
 template <typename T>
@@ -1985,6 +2301,13 @@ using CsrVariant =
 using CscVariant =
 	std::variant<dracolix::CscMatrix<float>, dracolix::CscMatrix<double>,
 				 dracolix::CscMatrix<int32_t>, dracolix::CscMatrix<int64_t>>;
+
+// Scalar types that have sparse storage; used to keep std::get_if calls
+// instantiated only for alternatives that actually exist in CsrVariant.
+template <typename T>
+inline constexpr bool is_sparse_scalar_v =
+	std::is_same_v<T, float> || std::is_same_v<T, double> ||
+	std::is_same_v<T, int32_t> || std::is_same_v<T, int64_t>;
 
 template <typename M> struct matrix_scalar;
 template <typename T> struct matrix_scalar<dracolix::CsrMatrix<T>> {
@@ -2461,6 +2784,8 @@ nb::object sparse_rmatmul(nb::object x, nb::object y) {
 							  dracolix::is_complex_v<T>) {
 					throw nb::type_error("dense @ sparse does not support bool "
 										 "or complex arrays");
+				} else if constexpr (!is_sparse_scalar_v<T>) {
+					throw nb::type_error("unsupported sparse dtype");
 				} else {
 					const auto *Bm = s.as<T>();
 					if (!Bm)
@@ -2483,6 +2808,8 @@ nb::object sparse_rmatmul(nb::object x, nb::object y) {
 							  dracolix::is_complex_v<T>) {
 					throw nb::type_error("dense @ sparse does not support bool "
 										 "or complex arrays");
+				} else if constexpr (!is_sparse_scalar_v<T>) {
+					throw nb::type_error("unsupported sparse dtype");
 				} else {
 					const auto *Cm = s.as<T>();
 					if (!Cm)
@@ -2846,6 +3173,8 @@ NB_MODULE(_dracolix_nb, m) {
 		.def("reshape", &dlx_reshape, nb::arg("shape"))
 		.def("transpose", &dlx_transpose)
 		.def("tolist", &dlx_tolist)
+		.def("item", &dlx_item, nb::arg("index") = nb::none())
+		.def("__index__", &dlx_index)
 
 		.def("sum", [](const DlxArray &a) { return dlx_sum(a); })
 		.def(
@@ -3099,8 +3428,14 @@ NB_MODULE(_dracolix_nb, m) {
 	// dtype_singleton()). Keep the objects stable, so "dlx.f32 is dlx.f32".
 	m.attr("f32") = nb::cast<DlxDType>(DlxDType(dracolix::DType::F32));
 	m.attr("f64") = nb::cast<DlxDType>(DlxDType(dracolix::DType::F64));
+	m.attr("i8") = nb::cast<DlxDType>(DlxDType(dracolix::DType::I8));
+	m.attr("i16") = nb::cast<DlxDType>(DlxDType(dracolix::DType::I16));
 	m.attr("i32") = nb::cast<DlxDType>(DlxDType(dracolix::DType::I32));
 	m.attr("i64") = nb::cast<DlxDType>(DlxDType(dracolix::DType::I64));
+	m.attr("u8") = nb::cast<DlxDType>(DlxDType(dracolix::DType::U8));
+	m.attr("u16") = nb::cast<DlxDType>(DlxDType(dracolix::DType::U16));
+	m.attr("u32") = nb::cast<DlxDType>(DlxDType(dracolix::DType::U32));
+	m.attr("u64") = nb::cast<DlxDType>(DlxDType(dracolix::DType::U64));
 	m.attr("c64") = nb::cast<DlxDType>(DlxDType(dracolix::DType::C64));
 	m.attr("c128") = nb::cast<DlxDType>(DlxDType(dracolix::DType::C128));
 	m.attr("bool") = nb::cast<DlxDType>(DlxDType(dracolix::DType::Bool));
@@ -3116,6 +3451,9 @@ NB_MODULE(_dracolix_nb, m) {
 		  nb::arg("dtype") = nb::none());
 	m.def("arange", &dlx_arange, nb::arg("start"), nb::arg("stop") = nb::none(),
 		  nb::arg("step") = nb::none());
+	m.def("linspace", &dlx_linspace, nb::arg("start"), nb::arg("stop"),
+		  nb::arg("num") = 50, nb::arg("endpoint") = true,
+		  nb::arg("dtype") = nb::none());
 
 	// ---- linear algebra ----------------------------------------------------
 	m.def(

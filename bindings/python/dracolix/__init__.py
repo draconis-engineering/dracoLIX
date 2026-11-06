@@ -35,11 +35,14 @@ from ._dracolix_nb import (  # type: ignore
     f32,
     f64,
     full,
+    i8,
+    i16,
     i32,
     i64,
     imag,
     inv,
     inverse,
+    linspace,
     lu,
     matmul,
     matvec,
@@ -50,6 +53,10 @@ from ._dracolix_nb import (  # type: ignore
     real,
     solve,
     svd,
+    u8,
+    u16,
+    u32,
+    u64,
     zeros,
 )
 
@@ -89,11 +96,14 @@ __all__ = [
     "f32",
     "f64",
     "full",
+    "i8",
+    "i16",
     "i32",
     "i64",
     "imag",
     "inv",
     "inverse",
+    "linspace",
     "lu",
     "matmul",
     "matvec",
@@ -104,21 +114,48 @@ __all__ = [
     "real",
     "solve",
     "svd",
+    "u8",
+    "u16",
+    "u32",
+    "u64",
     "zeros",
 ]
 
 _dtype_names = {
     "f32": f32,
     "f64": f64,
+    "i8": i8,
+    "i16": i16,
     "i32": i32,
     "i64": i64,
+    "u8": u8,
+    "u16": u16,
+    "u32": u32,
+    "u64": u64,
     "c64": c64,
     "c128": c128,
     "bool_": bool_,
 }
 _dtype_by_name = {k: v for k, v in _dtype_names.items()}
-# NumPy-style aliases for complex dtypes.
-_dtype_by_name.update({"complex64": c64, "complex128": c128, "complex": c128})
+# NumPy-style aliases.
+_dtype_by_name.update(
+    {
+        "int8": i8,
+        "int16": i16,
+        "int32": i32,
+        "int64": i64,
+        "uint8": u8,
+        "uint16": u16,
+        "uint32": u32,
+        "uint64": u64,
+        "float32": f32,
+        "float64": f64,
+        "complex64": c64,
+        "complex128": c128,
+        "complex": c128,
+        "bool": bool_,
+    }
+)
 del _dtype_names
 
 

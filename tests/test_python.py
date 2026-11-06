@@ -135,7 +135,7 @@ def test_buffer_import_memoryview():
 
 def test_buffer_import_bytes():
     a = dlx.array(b"\x01\x02\x03")
-    assert a.dtype is dlx.i32
+    assert a.dtype is dlx.u8
     assert a.tolist() == [1, 2, 3]
 
 
@@ -207,7 +207,7 @@ def test_promotion():
     assert (i + f).dtype is dlx.f64
     small = dlx.array([1, 2], dtype=dlx.i32)
     assert (small + i).dtype is dlx.i64
-    assert (small + dlx.array([1.0, 2.0], dtype=dlx.f32)).dtype is dlx.f32
+    assert (small + dlx.array([1.0, 2.0], dtype=dlx.f32)).dtype is dlx.f64
     assert (dlx.array([True]) + dlx.array([1])).dtype is dlx.i64
 
 
@@ -381,3 +381,197 @@ def test_invalid_inputs():
         dlx.zeros((2, -1))
     with pytest.raises(ValueError):
         dlx.arange(0, 5, 0)
+
+
+# ---------------------------------------------------------------------------
+# 0.3.1: additional integer dtypes
+# ---------------------------------------------------------------------------
+def test_integer_dtype_singletons():
+    expected = {
+        dlx.i8: ("i8", 1),
+        dlx.i16: ("i16", 2),
+        dlx.i32: ("i32", 4),
+        dlx.i64: ("i64", 8),
+        dlx.u8: ("u8", 1),
+        dlx.u16: ("u16", 2),
+        dlx.u32: ("u32", 4),
+        dlx.u64: ("u64", 8),
+    }
+    for dt, (name, size) in expected.items():
+        assert dt.name == name
+        assert dlx.array([1], dtype=dt).itemsize == size
+        assert dlx.dtype(name) is dt
+
+
+def test_new_integer_construction_and_astype():
+    for dt in (dlx.i8, dlx.i16, dlx.u8, dlx.u16, dlx.u32, dlx.u64):
+        a = dlx.array([1, 2, 3], dtype=dt)
+        assert a.dtype is dt
+        assert a.tolist() == [1, 2, 3]
+        assert a.astype(dlx.i64).tolist() == [1, 2, 3]
+        assert dlx.array([1.0, 2.0], dtype=dt).tolist() == [1, 2]
+        assert dlx.zeros(3, dtype=dt).tolist() == [0, 0, 0]
+        assert dlx.ones(2, dtype=dt).tolist() == [1, 1]
+        assert dlx.full(2, 7, dtype=dt).tolist() == [7, 7]
+
+    assert dlx.array([-1, -128], dtype=dlx.i8).tolist() == [-1, -128]
+    assert dlx.array([255], dtype=dlx.u8).tolist() == [255]
+    assert dlx.array([2**64 - 1], dtype=dlx.u64).tolist() == [2**64 - 1]
+
+
+def test_integer_overflow_rejected():
+    with pytest.raises(ValueError):
+        dlx.array([128], dtype=dlx.i8)
+    with pytest.raises(ValueError):
+        dlx.array([256], dtype=dlx.u8)
+    with pytest.raises(ValueError):
+        dlx.array([-1], dtype=dlx.u8)
+    with pytest.raises(ValueError):
+        dlx.array([2**32], dtype=dlx.u32)
+    with pytest.raises(TypeError):
+        dlx.array([1.5], dtype=dlx.i8)
+    with pytest.raises(TypeError):
+        dlx.array([1j], dtype=dlx.i8)
+
+
+def test_new_dtype_buffer_roundtrip():
+    formats = {
+        dlx.i8: "b",
+        dlx.i16: "h",
+        dlx.u8: "B",
+        dlx.u16: "H",
+        dlx.u32: "I",
+        dlx.u64: "Q",
+    }
+    for dt, fmt in formats.items():
+        a = dlx.array([1, 2, 3], dtype=dt)
+        mv = memoryview(a)
+        assert mv.format == fmt
+        b = dlx.array(mv)
+        assert b.dtype is dt
+        assert b.tolist() == [1, 2, 3]
+
+
+def test_new_dtype_numpy_interop():
+    np = pytest.importorskip("numpy")
+    for dt, npdt in (
+        (dlx.i8, np.int8),
+        (dlx.u16, np.uint16),
+        (dlx.u32, np.uint32),
+        (dlx.u64, np.uint64),
+    ):
+        n = np.array([1, 2], dtype=npdt)
+        a = dlx.array(n)
+        assert a.dtype is dt
+        back = np.asarray(a)
+        assert back.dtype == npdt
+        assert back.tolist() == [1, 2]
+
+
+# ---------------------------------------------------------------------------
+# 0.3.1: promotion matrix
+# ---------------------------------------------------------------------------
+def test_integer_promotion_matrix():
+    def add_dtype(a, b):
+        return (dlx.array([1], dtype=a) + dlx.array([1], dtype=b)).dtype
+
+    assert add_dtype(dlx.i8, dlx.i16) is dlx.i16
+    assert add_dtype(dlx.i8, dlx.u8) is dlx.i16
+    assert add_dtype(dlx.i16, dlx.u16) is dlx.i32
+    assert add_dtype(dlx.i32, dlx.u32) is dlx.i64
+    assert add_dtype(dlx.u32, dlx.i64) is dlx.i64
+    assert add_dtype(dlx.u64, dlx.i64) is dlx.f64
+    assert add_dtype(dlx.u64, dlx.u32) is dlx.u64
+    assert add_dtype(dlx.bool_, dlx.u8) is dlx.u8
+    assert add_dtype(dlx.bool_, dlx.i32) is dlx.i32
+
+
+def test_integer_float_complex_promotion():
+    def add_dtype(a, b):
+        return (dlx.array([1], dtype=a) + dlx.array([1], dtype=b)).dtype
+
+    assert add_dtype(dlx.i8, dlx.f32) is dlx.f32
+    assert add_dtype(dlx.u16, dlx.f32) is dlx.f32
+    assert add_dtype(dlx.i32, dlx.f32) is dlx.f64
+    assert add_dtype(dlx.u64, dlx.f32) is dlx.f64
+    assert add_dtype(dlx.i32, dlx.c64) is dlx.c128
+    assert add_dtype(dlx.i8, dlx.c64) is dlx.c64
+    assert add_dtype(dlx.u8, dlx.f64) is dlx.f64
+
+    assert (dlx.array([3], dtype=dlx.i8) / dlx.array([2], dtype=dlx.i8)).dtype is dlx.f64
+    assert (dlx.array([3], dtype=dlx.u32) / dlx.array([2], dtype=dlx.u32)).dtype is dlx.f64
+
+
+# ---------------------------------------------------------------------------
+# 0.3.1: item() and __index__
+# ---------------------------------------------------------------------------
+def test_item_scalar():
+    assert dlx.array([7], dtype=dlx.i32).item() == 7
+    assert dlx.array([2.5]).item() == 2.5
+    assert dlx.array([True]).item() is True
+    assert dlx.array([[4]], dtype=dlx.u8).item() == 4
+    with pytest.raises(ValueError):
+        dlx.array([1, 2]).item()
+
+
+def test_item_flat_index():
+    a = dlx.array([[1, 2, 3], [4, 5, 6]], dtype=dlx.i16)
+    assert a.item(0) == 1
+    assert a.item(2) == 3
+    assert a.item(-1) == 6
+    assert a.item(-4) == 3
+    with pytest.raises(IndexError):
+        a.item(6)
+    with pytest.raises(IndexError):
+        a.item(-7)
+
+
+def test_index_protocol():
+    import operator
+
+    assert operator.index(dlx.array([5], dtype=dlx.i64)) == 5
+    assert operator.index(dlx.array([5], dtype=dlx.u8)) == 5
+    assert operator.index(dlx.array([[5]], dtype=dlx.i8)) == 5
+    with pytest.raises(TypeError):
+        operator.index(dlx.array([1.0]))
+    with pytest.raises(TypeError):
+        operator.index(dlx.array([1, 2], dtype=dlx.i64))
+    with pytest.raises(TypeError):
+        operator.index(dlx.array([1j]))
+
+
+# ---------------------------------------------------------------------------
+# 0.3.1: linspace
+# ---------------------------------------------------------------------------
+def test_linspace_basic():
+    a = dlx.linspace(0.0, 1.0)
+    assert a.shape == (50,)
+    assert a.dtype is dlx.f64
+    assert a[0] == 0.0
+    assert a[-1] == 1.0
+
+    b = dlx.linspace(0, 10, 5)
+    assert b.tolist() == [0.0, 2.5, 5.0, 7.5, 10.0]
+
+    c = dlx.linspace(0, 10, 5, endpoint=False)
+    assert c.tolist() == [0.0, 2.0, 4.0, 6.0, 8.0]
+
+
+def test_linspace_edge_cases():
+    one = dlx.linspace(3, 7, 1)
+    assert one.tolist() == [3.0]
+    assert dlx.linspace(0, 1, 0).shape == (0,)
+    with pytest.raises(ValueError):
+        dlx.linspace(0, 1, -1)
+    with pytest.raises(TypeError):
+        dlx.linspace("a", "b")
+
+
+def test_linspace_dtype_and_complex():
+    assert dlx.linspace(0, 1, 3, dtype=dlx.f32).dtype is dlx.f32
+    assert dlx.linspace(0, 10, 3, dtype=dlx.i32).tolist() == [0, 5, 10]
+
+    z = dlx.linspace(0, 1 + 1j, 3)
+    assert z.dtype is dlx.c128
+    assert z.tolist()[0] == 0j
+    assert z.tolist()[-1] == pytest.approx(1 + 1j)

@@ -44,11 +44,8 @@ template <typename T> class Array {
 			throw std::invalid_argument("Array: shape cannot be empty");
 		ndim_ = shape_.size();
 		size_ = 1;
-		for (auto s : shape_) {
-			if (s == 0)
-				throw std::invalid_argument("Array: dimension cannot be 0");
+		for (auto s : shape_)
 			size_ *= s;
-		}
 		data_.resize(size_);
 		compute_strides();
 	}

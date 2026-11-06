@@ -6,6 +6,27 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-06
+
+### Added
+
+- Python: additional integer dtypes `i8`, `i16`, `u8`, `u16`, `u32`, and `u64`,
+  with NumPy-compatible promotion, overflow-checked construction and
+  assignment, PEP 3118 buffer interop, and NumPy-style dtype aliases.
+- Python: `linspace(start, stop, num=50, endpoint=True, dtype=None)` with
+  real and complex support.
+- Python: `Array.item(index=None)` and `Array.__index__` (size-1 integer
+  arrays), following NumPy semantics.
+- C++: `Array` now accepts shapes containing zero-length dimensions, so empty
+  arrays can be represented (for example `linspace(..., num=0)`).
+
+### Changed
+
+- Python: integer/float promotion now matches NumPy (for example `i32 + f32`
+  promotes to `f64`, `i8 + u8` promotes to `i16`).
+- Python: importing a byte buffer (`b"..."`) now infers `u8` instead of `i32`;
+  integer buffer formats map to their exact-width dtypes.
+
 ## [0.3.0] - 2026-11-05
 
 ### Added

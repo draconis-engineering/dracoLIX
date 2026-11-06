@@ -350,8 +350,9 @@ template <typename T> CscMatrix<T> CsrMatrix<T>::to_csc() const {
 	return out;
 }
 
-// ---- CsrMatrix: computation
-// ----------------------------------------------------
+// -------------------------------- //
+// ---- CsrMatrix: computation ---- //
+// -------------------------------- //
 
 template <typename T> Array<T> CsrMatrix<T>::matvec(const Array<T> &x) const {
 	if (x.ndim() != 1 || x.size() != cols_)
