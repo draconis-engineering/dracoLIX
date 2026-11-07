@@ -11,11 +11,11 @@
 #include "thread_pool.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstring>
 #include <future>
 #include <random>
-#include <cmath>
 #include <stdexcept>
 #include <type_traits>
 #include <vector>
@@ -517,7 +517,8 @@ template <typename T> class Array {
 		double mu = (double)mean();
 		double accum = 0.0;
 		for (size_t i = 0; i < size_; ++i)
-			accum += static_cast<double>(data_[i]) * static_cast<double>(data_[i]);
+			accum +=
+				static_cast<double>(data_[i]) * static_cast<double>(data_[i]);
 		return (accum / static_cast<double>(size_)) - mu * mu;
 	}
 
@@ -568,12 +569,16 @@ template <typename T> class Array {
 		if constexpr (is_complex_v<T>) {
 			auto out = s;
 			for (size_t i = 0; i < out.size(); ++i)
-				out[i] = std::sqrt(std::max(0.0, (double)out[i] - (double)out[i] * (double)out[i] / (div * div)));
+				out[i] = std::sqrt(std::max(
+					0.0, (double)out[i] -
+							 (double)out[i] * (double)out[i] / (div * div)));
 			return out;
 		} else {
 			auto out = s.template astype<double>();
 			for (size_t i = 0; i < out.size(); ++i)
-				out[i] = std::sqrt(std::max(0.0, (double)out[i] - (double)out[i] * (double)out[i] / (div * div)));
+				out[i] = std::sqrt(std::max(
+					0.0, (double)out[i] -
+							 (double)out[i] * (double)out[i] / (div * div)));
 			return out;
 		}
 	}
@@ -617,7 +622,6 @@ template <typename T> class Array {
 				throw std::logic_error("argmax(axis) empty");
 			return reduce_axis_minmax(axis, false);
 		}
-	}
 	}
 
 	// ================================================================
@@ -707,6 +711,8 @@ template <typename T> class Array {
 
 	// Returns an array filled with random values in the range (min, max)
 	// with optional include_min/max
+	//
+	// THERES NO WAY THIS IS CORRECT
 	static Array ranged_rand(std::vector<size_t> shape, T min, T max,
 							 bool include_min = false,
 							 bool include_max = false) {
