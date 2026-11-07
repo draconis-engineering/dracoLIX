@@ -517,6 +517,9 @@ void promote_complex_mismatch(std::optional<DlxArray> &a,
 // ---------------------------------------------------------------------------
 // Broadcast helpers (same semantics as core Array<T>::elementwise)
 // ---------------------------------------------------------------------------
+
+enum class BinOp { Add, Sub, Mul, Div, Pow, Eq, Ne, Lt, Le, Gt, Ge };
+
 std::vector<size_t> bcast_shape(const std::vector<size_t> &a,
 								const std::vector<size_t> &b) {
 	size_t na = a.size(), nb = b.size();
@@ -613,7 +616,6 @@ dracolix::Array<bool> cmp_bcast(const dracolix::Array<R> &a,
 // ---------------------------------------------------------------------------
 // Binary operations (promotion + broadcasting; no bool arithmetic)
 // ---------------------------------------------------------------------------
-enum class BinOp { Add, Sub, Mul, Div, Pow, Eq, Ne, Lt, Le, Gt, Ge };
 
 // Element-wise power. Integer arrays keep their integer dtype (NumPy
 // rejects negative integer exponents), while floating/complex arrays use
