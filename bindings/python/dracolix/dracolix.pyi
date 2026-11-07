@@ -126,6 +126,22 @@ class Array:
     def __matmul__(self, other: Array) -> Array | Scalar: ...
     def __eq__(self, other: Array | Scalar) -> Array: ...  # bool array # type: ignore
     def __ne__(self, other: Array | Scalar) -> Array: ...  # bool array # type: ignore
+    def __lt__(self, other: Array | Scalar) -> Array: ...  # bool array # type: ignore
+    def __le__(self, other: Array | Scalar) -> Array: ...  # bool array # type: ignore
+    def __gt__(self, other: Array | Scalar) -> Array: ...  # bool array # type: ignore
+    def __ge__(self, other: Array | Scalar) -> Array: ...  # bool array # type: ignore
+    def prod(self) -> Scalar: ...                      # global product
+    def prod(self, axis: int) -> Array: ...            # product along axis
+    def std(self) -> Scalar: ...                       # population std-dev
+    def std(self, axis: int) -> Array: ...             # std along axis
+    def var(self) -> Scalar: ...                       # population variance
+    def var(self, axis: int) -> Array: ...             # variance along axis
+    def argmin(self) -> Scalar: ...                    # index of minimum
+    def argmax(self) -> Scalar: ...                    # index of maximum
+    def __lt__(self, other: Array | Scalar) -> Array: ...  # bool array # type: ignore
+    def __le__(self, other: Array | Scalar) -> Array: ...  # bool array # type: ignore
+    def __gt__(self, other: Array | Scalar) -> Array: ...  # bool array # type: ignore
+    def __ge__(self, other: Array | Scalar) -> Array: ...  # bool array # type: ignore
 
     # methods
     def copy(self) -> Array: ...

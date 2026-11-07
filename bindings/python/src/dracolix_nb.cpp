@@ -1,6 +1,6 @@
-﻿// DracoLIX Python bindings (nanobind).
+// DracoLIX Python bindings (nanobind).
 //
-// Zero-NumPy runtime: interop is done through the PEP 3118 buffer protocol.
+// Interop is done through the PEP 3118 buffer protocol.
 // We export buffers from dracolix Array (bf_getbuffer) and consume buffers
 // from numpy/memoryview (PyObject_GetBuffer).
 //
@@ -549,13 +549,35 @@ size_t bcast_offset(const std::vector<size_t> &shape,
 	return off;
 }
 
-template <typename R>
-dracolix::Array<bool> compare_bcast(const dracolix::Array<R> &a,
-									const dracolix::Array<R> &b, bool eq) {
+// Ordering comparisons are implemented below (after the BinOp enum below is
+// declared); forward-declared here so cmp_bcast can reference it.
+enum class BinOp : int;
+
+	template <typename R, BinOp op>
+	dracolix::Array<bool> cmp_bcast(const dracolix::Array<R> &a,
+									const dracolix::Array<R> &b) {
+		if constexpr (dracolix::is_complex_v<R> &&
+					  op != BinOp::Eq && op != BinOp::Ne)
+			throw nb::type_error(
+				"ordering comparisons are not supported for complex dtypes");
+		auto comp = [](const R &x, const R &y) {
+		if constexpr (op == BinOp::Eq)
+			return x == y;
+		if constexpr (op == BinOp::Ne)
+			return x != y;
+		if constexpr (op == BinOp::Lt)
+			return x < y;
+		if constexpr (op == BinOp::Le)
+			return x <= y;
+		if constexpr (op == BinOp::Gt)
+			return x > y;
+		if constexpr (op == BinOp::Ge)
+			return x >= y;
+	};
 	if (a.shape() == b.shape()) {
 		dracolix::Array<bool> out(a.shape());
 		for (size_t i = 0; i < a.size(); ++i)
-			out[i] = eq ? (a[i] == b[i]) : (a[i] != b[i]);
+			out[i] = comp(a[i], b[i]);
 		return out;
 	}
 	auto bs = bcast_shape(a.shape(), b.shape());
@@ -570,7 +592,7 @@ dracolix::Array<bool> compare_bcast(const dracolix::Array<R> &a,
 		}
 		size_t off_a = bcast_offset(a.shape(), a.strides(), idx, bnd);
 		size_t off_b = bcast_offset(b.shape(), b.strides(), idx, bnd);
-		out[flat] = eq ? (a[off_a] == b[off_b]) : (a[off_a] != b[off_b]);
+		out[flat] = comp(a[off_a], b[off_b]);
 	}
 	return out;
 }
@@ -578,7 +600,7 @@ dracolix::Array<bool> compare_bcast(const dracolix::Array<R> &a,
 // ---------------------------------------------------------------------------
 // Binary operations (promotion + broadcasting; no bool arithmetic)
 // ---------------------------------------------------------------------------
-enum class BinOp { Add, Sub, Mul, Div, Pow, Eq, Ne };
+enum class BinOp { Add, Sub, Mul, Div, Pow, Eq, Ne, Lt, Le, Gt, Ge };
 
 // Element-wise power. Integer arrays keep their integer dtype (NumPy rejects
 // negative integer exponents), while floating/complex arrays use std::pow.
@@ -647,9 +669,33 @@ DlxArray bin_typed(const DlxArray &A, const DlxArray &B, BinOp op) {
 	case BinOp::Pow:
 		return DlxArray(pow_bcast(a, b));
 	case BinOp::Eq:
-		return DlxArray(compare_bcast<R>(a, b, true));
+		return DlxArray(cmp_bcast<R, BinOp::Eq>(a, b));
 	case BinOp::Ne:
-		return DlxArray(compare_bcast<R>(a, b, false));
+		return DlxArray(cmp_bcast<R, BinOp::Ne>(a, b));
+	case BinOp::Lt:
+		if constexpr (dracolix::is_complex_v<R>)
+			throw nb::type_error(
+				"ordering comparisons are not supported for complex dtypes");
+		else
+			return DlxArray(cmp_bcast<R, BinOp::Lt>(a, b));
+	case BinOp::Le:
+		if constexpr (dracolix::is_complex_v<R>)
+			throw nb::type_error(
+				"ordering comparisons are not supported for complex dtypes");
+		else
+			return DlxArray(cmp_bcast<R, BinOp::Le>(a, b));
+	case BinOp::Gt:
+		if constexpr (dracolix::is_complex_v<R>)
+			throw nb::type_error(
+				"ordering comparisons are not supported for complex dtypes");
+		else
+			return DlxArray(cmp_bcast<R, BinOp::Gt>(a, b));
+	case BinOp::Ge:
+		if constexpr (dracolix::is_complex_v<R>)
+			throw nb::type_error(
+				"ordering comparisons are not supported for complex dtypes");
+		else
+			return DlxArray(cmp_bcast<R, BinOp::Ge>(a, b));
 	}
 	throw std::logic_error("unreachable");
 }
@@ -677,6 +723,8 @@ DlxArray bin_switch(dracolix::DType r, const DlxArray &A, const DlxArray &B,
 		return bin_typed<uint32_t>(A, B, op);
 	case dracolix::DType::U64:
 		return bin_typed<uint64_t>(A, B, op);
+	case dracolix::DType::Bool:
+		return bin_typed<bool>(A, B, op);
 	case dracolix::DType::C64:
 		return bin_typed<std::complex<float>>(A, B, op);
 	case dracolix::DType::C128:
@@ -707,11 +755,11 @@ nb::object dlx_bin_op(nb::object x, nb::object y, BinOp op) {
 	dracolix::DType ra = A->dtype(), rb = B->dtype();
 	dracolix::DType r = promote_pair(ra, rb);
 	if (r == dracolix::DType::Bool) {
-		// Bool never participates in arithmetic (NumPy raises), but equality
-		// and inequality of two bool arrays yield a bool array.
-		if (op == BinOp::Eq || op == BinOp::Ne)
-			return nb::cast<DlxArray>(bin_typed<bool>(*A, *B, op));
-		return nb::not_implemented();
+		// Bool never participates in arithmetic (NumPy raises), but elementwise
+		// comparisons of bool arrays are well defined.
+		if (op == BinOp::Add || op == BinOp::Sub || op == BinOp::Mul ||
+			op == BinOp::Div || op == BinOp::Pow)
+			return nb::not_implemented();
 	}
 	if (op == BinOp::Div && r != dracolix::DType::C64 &&
 		r != dracolix::DType::C128) {
@@ -750,6 +798,18 @@ nb::object dlx_eq(nb::object x, nb::object y) {
 }
 nb::object dlx_ne(nb::object x, nb::object y) {
 	return dlx_bin_op(x, y, BinOp::Ne);
+}
+nb::object dlx_lt(nb::object x, nb::object y) {
+	return dlx_bin_op(x, y, BinOp::Lt);
+}
+nb::object dlx_le(nb::object x, nb::object y) {
+	return dlx_bin_op(x, y, BinOp::Le);
+}
+nb::object dlx_gt(nb::object x, nb::object y) {
+	return dlx_bin_op(x, y, BinOp::Gt);
+}
+nb::object dlx_ge(nb::object x, nb::object y) {
+	return dlx_bin_op(x, y, BinOp::Ge);
 }
 
 nb::object dlx_neg(nb::object x) {
@@ -2123,6 +2183,71 @@ DlxArray dlx_mean_axis(const DlxArray &a, int64_t axis) {
 }
 
 // ---------------------------------------------------------------------------
+// comparisons
+// -----------
+// All comparators implement two functions: one array-array elementwise and one
+// single-array that compares against a scalar
+//
+// NOTE: not sure how to do this at all
+// ---------------------------------------------------------------------------
+
+static DlxArray dlx_compare_arrays(const DlxArray &a, const DlxArray &b,
+								   BinOp op) {
+	dracolix::DType r = promote_pair(a.dtype(), b.dtype());
+	DlxArray Ca = cast_dtype(a, r);
+	DlxArray Cb = cast_dtype(b, r);
+	return bin_switch(r, Ca, Cb, op);
+}
+
+DlxArray dlx_equal(const DlxArray &a, const DlxArray &b) {
+	return dlx_compare_arrays(a, b, BinOp::Eq);
+}
+
+DlxArray dlx_equal(const DlxArray &a, const int64_t x) {
+	return dlx_compare_arrays(a, dlx_array(nb::int_(x), nb::none()), BinOp::Eq);
+}
+
+DlxArray dlx_not_equal(const DlxArray &a, const DlxArray &b) {
+	return dlx_compare_arrays(a, b, BinOp::Ne);
+}
+
+DlxArray dlx_not_equal(const DlxArray &a, const int64_t x) {
+	return dlx_compare_arrays(a, dlx_array(nb::int_(x), nb::none()), BinOp::Ne);
+}
+
+DlxArray dlx_less_than(const DlxArray &a, const DlxArray &b) {
+	return dlx_compare_arrays(a, b, BinOp::Lt);
+}
+
+DlxArray dlx_less_than(const DlxArray &a, const int64_t x) {
+	return dlx_compare_arrays(a, dlx_array(nb::int_(x), nb::none()), BinOp::Lt);
+}
+
+DlxArray dlx_less_or_equal_than(const DlxArray &a, const DlxArray &b) {
+	return dlx_compare_arrays(a, b, BinOp::Le);
+}
+
+DlxArray dlx_less_or_equal_than(const DlxArray &a, const int64_t x) {
+	return dlx_compare_arrays(a, dlx_array(nb::int_(x), nb::none()), BinOp::Le);
+}
+
+DlxArray dlx_greater_than(const DlxArray &a, const DlxArray &b) {
+	return dlx_compare_arrays(a, b, BinOp::Gt);
+}
+
+DlxArray dlx_greater_than(const DlxArray &a, const int64_t x) {
+	return dlx_compare_arrays(a, dlx_array(nb::int_(x), nb::none()), BinOp::Gt);
+}
+
+DlxArray dlx_greater_or_equal_than(const DlxArray &a, const DlxArray &b) {
+	return dlx_compare_arrays(a, b, BinOp::Ge);
+}
+
+DlxArray dlx_greater_or_equal_than(const DlxArray &a, const int64_t x) {
+	return dlx_compare_arrays(a, dlx_array(nb::int_(x), nb::none()), BinOp::Ge);
+}
+
+// ---------------------------------------------------------------------------
 // complex-valued helpers: real / imag / conj / abs / angle
 //
 // These work for every dtype. For real arrays the imaginary part is zero,
@@ -2429,7 +2554,8 @@ DlxCsc csc_from_dense(const DlxArray &a) {
 	}
 }
 
-// ---- construction
+// ------------------------------------------------------------
+// ---- construction ------------------------------------------
 // ------------------------------------------------------------
 
 DlxCsr csr_from_dense(const DlxArray &a) {
@@ -2592,7 +2718,8 @@ DlxCsc csc_from_coo(size_t rows, size_t cols, nb::object row_ind,
 	}
 }
 
-// ---- accessors
+// ----------------------------------------------------------------
+// ---- accessors -------------------------------------------------
 // ----------------------------------------------------------------
 
 nb::tuple int_tuple2(size_t a, size_t b) {
@@ -2698,7 +2825,8 @@ nb::object csc_to_csc(const DlxCsc &m) {
 		[](const auto &mm) { return nb::cast<DlxCsc>(DlxCsc(mm)); }, m.v);
 }
 
-// ---- matmul
+// ---------------------------------------------------------------------
+// ---- matmul ---------------------------------------------------------
 // ---------------------------------------------------------------------
 
 template <typename T>
@@ -3226,6 +3354,10 @@ NB_MODULE(_dracolix_nb, m) {
 		.def("__neg__", &dlx_neg)
 		.def("__eq__", &dlx_eq)
 		.def("__ne__", &dlx_ne)
+		.def("__lt__", &dlx_lt)
+		.def("__le__", &dlx_le)
+		.def("__gt__", &dlx_gt)
+		.def("__ge__", &dlx_ge)
 		.def("__matmul__", &dlx_matmul)
 		.def("__rmatmul__",
 			 [](nb::object x, nb::object y) { return dlx_matmul(y, x); });

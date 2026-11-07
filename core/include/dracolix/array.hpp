@@ -15,6 +15,7 @@
 #include <cstring>
 #include <future>
 #include <random>
+#include <cmath>
 #include <stdexcept>
 #include <type_traits>
 #include <vector>
@@ -461,6 +462,162 @@ template <typename T> class Array {
 			// use parallel sum
 			return (double)sum() / (double)size_;
 		}
+	}
+
+	// ================================================================
+	// Global reductions (returns a scalar) ---------------
+	// ================================================================
+
+	// Returns the product of all elements in the array
+	T prod() const {
+		if (size_ == 0)
+			throw std::logic_error("prod of empty array");
+		if (size_ < 100000) {
+			T acc = T{};
+			for (auto v : data_)
+				acc *= v;
+			return acc;
+		}
+		// parallel product: split into chunks
+		size_t nthreads = ThreadPool::global().size();
+		size_t chunk = (size_ + nthreads - 1) / nthreads;
+		std::vector<T> partials(nthreads, T{});
+		std::vector<std::future<void>> futs;
+		for (size_t t = 0; t < nthreads; ++t) {
+			size_t s = t * chunk, e = std::min(size_, s + chunk);
+			if (s >= e)
+				break;
+			futs.push_back(ThreadPool::global().enqueue([&, t, s, e] {
+				T acc = T{};
+				for (size_t i = s; i < e; ++i)
+					acc *= static_cast<T>(data_[i]);
+				partials[t] = acc;
+			}));
+		}
+		for (auto &f : futs)
+			f.get();
+		T acc = T{};
+		for (auto v : partials)
+			acc *= v;
+		return acc;
+	}
+
+	// Returns the population standard deviation of the array
+	double std() const {
+		double var = var();
+		if (var <= 0.0)
+			return 0.0;
+		return std::sqrt(var);
+	}
+
+	// Returns the population variance of the array
+	double var() const {
+		if (size_ == 0)
+			throw std::logic_error("var of empty array");
+		double mu = (double)mean();
+		double accum = 0.0;
+		for (size_t i = 0; i < size_; ++i)
+			accum += static_cast<double>(data_[i]) * static_cast<double>(data_[i]);
+		return (accum / static_cast<double>(size_)) - mu * mu;
+	}
+
+	// Returns the index of the minimum element in the array
+	size_t argmin() const {
+		if (size_ == 0)
+			throw std::logic_error("argmin of empty array");
+		if constexpr (is_complex_v<T>) {
+			throw std::domain_error(
+				"argmin is undefined for complex arrays (no ordering)");
+		}
+		size_t min_idx = 0;
+		for (size_t i = 1; i < size_; ++i)
+			if (data_[i] < data_[min_idx])
+				min_idx = i;
+		return min_idx;
+	}
+
+	// Returns the index of the maximum element in the array
+	size_t argmax() const {
+		if (size_ == 0)
+			throw std::logic_error("argmax of empty array");
+		if constexpr (is_complex_v<T>) {
+			throw std::domain_error(
+				"argmax is undefined for complex arrays (no ordering)");
+		}
+		size_t max_idx = 0;
+		for (size_t i = 1; i < size_; ++i)
+			if (data_[i] > data_[max_idx])
+				max_idx = i;
+		return max_idx;
+	}
+
+	// ================================================================
+	// Reductions along axis (returns Array with that axis removed) ---
+	// ================================================================
+
+	// Returns the product of the array along the given axis
+	Array prod(size_t axis) const {
+		return reduce_axis(
+			axis, [](T a, T b) { return static_cast<T>(a * b); }, T{});
+	}
+
+	// Returns the standard deviation along the given axis
+	Array std(size_t axis) const {
+		auto s = mean(axis);
+		auto div = static_cast<double>(shape_[axis]);
+		if constexpr (is_complex_v<T>) {
+			auto out = s;
+			for (size_t i = 0; i < out.size(); ++i)
+				out[i] = std::sqrt(std::max(0.0, (double)out[i] - (double)out[i] * (double)out[i] / (div * div)));
+			return out;
+		} else {
+			auto out = s.template astype<double>();
+			for (size_t i = 0; i < out.size(); ++i)
+				out[i] = std::sqrt(std::max(0.0, (double)out[i] - (double)out[i] * (double)out[i] / (div * div)));
+			return out;
+		}
+	}
+
+	// Returns the variance along the given axis
+	Array var(size_t axis) const {
+		auto s = mean(axis);
+		auto div = static_cast<double>(shape_[axis]);
+		if constexpr (is_complex_v<T>) {
+			auto out = s;
+			for (size_t i = 0; i < out.size(); ++i)
+				out[i] = (double)out[i] * (double)out[i] / (div * div);
+			return out;
+		} else {
+			auto out = s.template astype<double>();
+			for (size_t i = 0; i < out.size(); ++i)
+				out[i] = (double)out[i] * (double)out[i] / (div * div);
+			return out;
+		}
+	}
+
+	// Returns the index of the minimum element along the given axis
+	Array argmin(size_t axis) const {
+		if constexpr (is_complex_v<T>) {
+			throw std::domain_error(
+				"argmin(axis) is undefined for complex arrays (no ordering)");
+		} else {
+			if (size_ == 0)
+				throw std::logic_error("argmin(axis) empty");
+			return reduce_axis_minmax(axis, true);
+		}
+	}
+
+	// Returns the index of the maximum element along the given axis
+	Array argmax(size_t axis) const {
+		if constexpr (is_complex_v<T>) {
+			throw std::domain_error(
+				"argmax(axis) is undefined for complex arrays (no ordering)");
+		} else {
+			if (size_ == 0)
+				throw std::logic_error("argmax(axis) empty");
+			return reduce_axis_minmax(axis, false);
+		}
+	}
 	}
 
 	// ================================================================
