@@ -502,14 +502,6 @@ template <typename T> class Array {
 		return acc;
 	}
 
-	// Returns the population standard deviation of the array
-	double std() const {
-		double var = var();
-		if (var <= 0.0)
-			return 0.0;
-		return std::sqrt(var);
-	}
-
 	// Returns the population variance of the array
 	double var() const {
 		if (size_ == 0)
@@ -520,6 +512,14 @@ template <typename T> class Array {
 			accum +=
 				static_cast<double>(data_[i]) * static_cast<double>(data_[i]);
 		return (accum / static_cast<double>(size_)) - mu * mu;
+	}
+
+	// Returns the population standard deviation of the array
+	double std() const {
+		double var_ = var();
+		if (var_ <= 0.0)
+			return 0.0;
+		return std::sqrt(var_);
 	}
 
 	// Returns the index of the minimum element in the array
