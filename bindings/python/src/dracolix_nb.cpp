@@ -553,48 +553,54 @@ size_t bcast_offset(const std::vector<size_t> &shape,
 // declared); forward-declared here so cmp_bcast can reference it.
 enum class BinOp : int;
 
-	template <typename R, BinOp op>
-	dracolix::Array<bool> cmp_bcast(const dracolix::Array<R> &a,
-									const dracolix::Array<R> &b) {
-		if constexpr (dracolix::is_complex_v<R> &&
-					  op != BinOp::Eq && op != BinOp::Ne)
-			throw nb::type_error(
-				"ordering comparisons are not supported for complex dtypes");
+template <typename R, BinOp op>
+dracolix::Array<bool> cmp_bcast(const dracolix::Array<R> &a,
+								const dracolix::Array<R> &b) {
+	if constexpr (dracolix::is_complex_v<R> && op != BinOp::Eq &&
+				  op != BinOp::Ne) {
+		throw nb::type_error(
+			"ordering comparisons are not supported for complex dtypes");
+	} else {
 		auto comp = [](const R &x, const R &y) {
-		if constexpr (op == BinOp::Eq)
-			return x == y;
-		if constexpr (op == BinOp::Ne)
-			return x != y;
-		if constexpr (op == BinOp::Lt)
-			return x < y;
-		if constexpr (op == BinOp::Le)
-			return x <= y;
-		if constexpr (op == BinOp::Gt)
-			return x > y;
-		if constexpr (op == BinOp::Ge)
-			return x >= y;
-	};
-	if (a.shape() == b.shape()) {
-		dracolix::Array<bool> out(a.shape());
-		for (size_t i = 0; i < a.size(); ++i)
-			out[i] = comp(a[i], b[i]);
+			if constexpr (op == BinOp::Eq)
+				return x == y;
+			else if constexpr (op == BinOp::Ne)
+				return x != y;
+			else if constexpr (op == BinOp::Lt)
+				return x < y;
+			else if constexpr (op == BinOp::Le)
+				return x <= y;
+			else if constexpr (op == BinOp::Gt)
+				return x > y;
+			else
+				return x >= y;
+		};
+
+		if (a.shape() == b.shape()) {
+			dracolix::Array<bool> out(a.shape());
+			for (size_t i = 0; i < a.size(); ++i)
+				out[i] = comp(a[i], b[i]);
+			return out;
+		}
+
+		auto bs = bcast_shape(a.shape(), b.shape());
+		dracolix::Array<bool> out(bs);
+		size_t bnd = bs.size();
+		std::vector<size_t> idx(bnd);
+
+		for (size_t flat = 0; flat < out.size(); ++flat) {
+			size_t rem = flat;
+			for (int d = (int)bnd - 1; d >= 0; --d) {
+				idx[d] = rem % bs[d];
+				rem /= bs[d];
+			}
+
+			size_t off_a = bcast_offset(a.shape(), a.strides(), idx, bnd);
+			size_t off_b = bcast_offset(b.shape(), b.strides(), idx, bnd);
+			out[flat] = comp(a[off_a], b[off_b]);
+		}
 		return out;
 	}
-	auto bs = bcast_shape(a.shape(), b.shape());
-	dracolix::Array<bool> out(bs);
-	size_t bnd = bs.size();
-	std::vector<size_t> idx(bnd);
-	for (size_t flat = 0; flat < out.size(); ++flat) {
-		size_t rem = flat;
-		for (int d = (int)bnd - 1; d >= 0; --d) {
-			idx[d] = rem % bs[d];
-			rem /= bs[d];
-		}
-		size_t off_a = bcast_offset(a.shape(), a.strides(), idx, bnd);
-		size_t off_b = bcast_offset(b.shape(), b.strides(), idx, bnd);
-		out[flat] = comp(a[off_a], b[off_b]);
-	}
-	return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -602,8 +608,9 @@ enum class BinOp : int;
 // ---------------------------------------------------------------------------
 enum class BinOp { Add, Sub, Mul, Div, Pow, Eq, Ne, Lt, Le, Gt, Ge };
 
-// Element-wise power. Integer arrays keep their integer dtype (NumPy rejects
-// negative integer exponents), while floating/complex arrays use std::pow.
+// Element-wise power. Integer arrays keep their integer dtype (NumPy
+// rejects negative integer exponents), while floating/complex arrays use
+// std::pow.
 template <typename R> R pow_scalar(R base, R exponent) {
 	if constexpr (std::is_integral_v<R>) {
 		if constexpr (std::is_signed_v<R>) {
@@ -674,26 +681,26 @@ DlxArray bin_typed(const DlxArray &A, const DlxArray &B, BinOp op) {
 		return DlxArray(cmp_bcast<R, BinOp::Ne>(a, b));
 	case BinOp::Lt:
 		if constexpr (dracolix::is_complex_v<R>)
-			throw nb::type_error(
-				"ordering comparisons are not supported for complex dtypes");
+			throw nb::type_error("ordering comparisons are not supported "
+								 "for complex dtypes");
 		else
 			return DlxArray(cmp_bcast<R, BinOp::Lt>(a, b));
 	case BinOp::Le:
 		if constexpr (dracolix::is_complex_v<R>)
-			throw nb::type_error(
-				"ordering comparisons are not supported for complex dtypes");
+			throw nb::type_error("ordering comparisons are not supported "
+								 "for complex dtypes");
 		else
 			return DlxArray(cmp_bcast<R, BinOp::Le>(a, b));
 	case BinOp::Gt:
 		if constexpr (dracolix::is_complex_v<R>)
-			throw nb::type_error(
-				"ordering comparisons are not supported for complex dtypes");
+			throw nb::type_error("ordering comparisons are not supported "
+								 "for complex dtypes");
 		else
 			return DlxArray(cmp_bcast<R, BinOp::Gt>(a, b));
 	case BinOp::Ge:
 		if constexpr (dracolix::is_complex_v<R>)
-			throw nb::type_error(
-				"ordering comparisons are not supported for complex dtypes");
+			throw nb::type_error("ordering comparisons are not supported "
+								 "for complex dtypes");
 		else
 			return DlxArray(cmp_bcast<R, BinOp::Ge>(a, b));
 	}
@@ -755,16 +762,16 @@ nb::object dlx_bin_op(nb::object x, nb::object y, BinOp op) {
 	dracolix::DType ra = A->dtype(), rb = B->dtype();
 	dracolix::DType r = promote_pair(ra, rb);
 	if (r == dracolix::DType::Bool) {
-		// Bool never participates in arithmetic (NumPy raises), but elementwise
-		// comparisons of bool arrays are well defined.
+		// Bool never participates in arithmetic (NumPy raises), but
+		// elementwise comparisons of bool arrays are well defined.
 		if (op == BinOp::Add || op == BinOp::Sub || op == BinOp::Mul ||
 			op == BinOp::Div || op == BinOp::Pow)
 			return nb::not_implemented();
 	}
 	if (op == BinOp::Div && r != dracolix::DType::C64 &&
 		r != dracolix::DType::C128) {
-		// __truediv__: NumPy-like semantics (int/int -> f64, f32/f32 -> f32).
-		// Complex division keeps its promoted complex dtype.
+		// __truediv__: NumPy-like semantics (int/int -> f64, f32/f32 ->
+		// f32). Complex division keeps its promoted complex dtype.
 		r = (ra == dracolix::DType::F32 && rb == dracolix::DType::F32)
 				? dracolix::DType::F32
 				: dracolix::DType::F64;
@@ -936,7 +943,8 @@ nb::object dlx_scalar_index(const DlxArray &a,
 	return py_scalar_at(a, (int64_t)off);
 }
 
-// Materialize a (possibly mixed int/slice) index into a new contiguous array.
+// Materialize a (possibly mixed int/slice) index into a new contiguous
+// array.
 template <typename T>
 dracolix::Array<T> slice_materialize(const dracolix::Array<T> &arr,
 									 const std::vector<KeySpec> &keys) {
@@ -1067,8 +1075,8 @@ nb::object dlx_setitem(DlxArray &self, nb::object key, nb::object val) {
 
 // ---------------------------------------------------------------------------
 // Buffer protocol export (PEP 3118).
-// nanobind does not ship def_buffer(); we wire bf_getbuffer / bf_releasebuffer
-// on the registered type ourselves.
+// nanobind does not ship def_buffer(); we wire bf_getbuffer /
+// bf_releasebuffer on the registered type ourselves.
 // ---------------------------------------------------------------------------
 const char *buffer_format(dracolix::DType dt) {
 	switch (dt) {
@@ -1142,8 +1150,9 @@ int dlx_getbuffer(PyObject *obj, Py_buffer *view, int flags) {
 		}
 	}
 
-	// Contiguity checks must compare the full flag mask: PyBUF_C/F_CONTIGUOUS
-	// each include the ND+STRIDES bits, which plain requests always carry.
+	// Contiguity checks must compare the full flag mask:
+	// PyBUF_C/F_CONTIGUOUS each include the ND+STRIDES bits, which plain
+	// requests always carry.
 	if ((flags & PyBUF_C_CONTIGUOUS) == PyBUF_C_CONTIGUOUS && !is_rowmajor) {
 		PyErr_Format(PyExc_BufferError, "dracolix array is not C-contiguous");
 		return -1;
@@ -1154,7 +1163,8 @@ int dlx_getbuffer(PyObject *obj, Py_buffer *view, int flags) {
 		return -1;
 	}
 	// PyBUF_INDIRECT relaxes the format requirements but never suboffsets;
-	// we are suboffset-capable exporter (we simply never produce suboffsets).
+	// we are suboffset-capable exporter (we simply never produce
+	// suboffsets).
 
 	bool need_shape = (flags & PyBUF_ND) != 0;
 	bool need_strides = (flags & PyBUF_STRIDES) != 0;
@@ -1597,7 +1607,8 @@ void fill_leaf(dracolix::Array<T> &out, size_t i, nb::object leaf) {
 		out[i] = integer_from_py<T>(leaf);
 	} else {
 		// Like NumPy's list conversion, a complex leaf cannot be stored
-		// silently in a real dtype (use astype() to drop the imaginary part).
+		// silently in a real dtype (use astype() to drop the imaginary
+		// part).
 		if (num_kind(leaf) == NumKind::Complex)
 			throw nb::type_error("cannot convert complex to float dtype");
 		out[i] = (T)to_double(leaf);
@@ -2151,8 +2162,8 @@ DlxArray dlx_min_axis(const DlxArray &a, int64_t axis) {
 		[&](const auto &arr) -> DlxArray {
 			using T = typename array_scalar<std::decay_t<decltype(arr)>>::type;
 			if constexpr (dracolix::is_complex_v<T>)
-				throw nb::type_error(
-					"min(axis) is undefined for complex arrays (no ordering)");
+				throw nb::type_error("min(axis) is undefined for complex "
+									 "arrays (no ordering)");
 			else
 				return DlxArray(arr.min_axis((size_t)axis));
 		},
@@ -2165,8 +2176,8 @@ DlxArray dlx_max_axis(const DlxArray &a, int64_t axis) {
 		[&](const auto &arr) -> DlxArray {
 			using T = typename array_scalar<std::decay_t<decltype(arr)>>::type;
 			if constexpr (dracolix::is_complex_v<T>)
-				throw nb::type_error(
-					"max(axis) is undefined for complex arrays (no ordering)");
+				throw nb::type_error("max(axis) is undefined for complex "
+									 "arrays (no ordering)");
 			else
 				return DlxArray(arr.max_axis((size_t)axis));
 		},
@@ -2185,8 +2196,8 @@ DlxArray dlx_mean_axis(const DlxArray &a, int64_t axis) {
 // ---------------------------------------------------------------------------
 // comparisons
 // -----------
-// All comparators implement two functions: one array-array elementwise and one
-// single-array that compares against a scalar
+// All comparators implement two functions: one array-array elementwise and
+// one single-array that compares against a scalar
 //
 // NOTE: not sure how to do this at all
 // ---------------------------------------------------------------------------
@@ -2441,8 +2452,8 @@ template <typename T> struct matrix_scalar<dracolix::CscMatrix<T>> {
 
 // MSVC refuses the std::variant converting constructor when the alternative
 // type is a dependent name inside a template. These helpers narrow T to a
-// concrete scalar via if constexpr so every std::variant construction sees a
-// concrete, non-dependent matrix type.
+// concrete scalar via if constexpr so every std::variant construction sees
+// a concrete, non-dependent matrix type.
 template <typename T> CsrVariant make_csr(dracolix::CsrMatrix<T> m) {
 	if constexpr (std::is_same_v<T, float>)
 		return CsrVariant(std::move(m));
@@ -2529,9 +2540,9 @@ DlxCsc csc_from_dense(const DlxArray &a) {
 		throw nb::type_error("csc_matrix() requires a 2-D array");
 	if (a.dtype() == dracolix::DType::Bool)
 		throw nb::type_error("sparse matrices do not support bool entries");
-	// Concrete per-dtype branches: MSVC cannot resolve std::variant ctors when
-	// the scalar dracolix::Array<T> type comes from a nested alias (see helpers
-	// below), so spell each alternative out.
+	// Concrete per-dtype branches: MSVC cannot resolve std::variant ctors
+	// when the scalar dracolix::Array<T> type comes from a nested alias
+	// (see helpers below), so spell each alternative out.
 	switch (a.dtype()) {
 	case dracolix::DType::F32: {
 		const dracolix::Array<float> &src = *a.as<float>();
@@ -2877,8 +2888,9 @@ nb::object csr_matmul(const DlxCsr &A, nb::object other) {
 }
 
 nb::object csc_matmul(const DlxCsc &C, nb::object other) {
-	// CSC has no matmul kernel of its own: materialize CSR (same matrix) and
-	// delegate. Correctness is preserved; the CSR path is the reference impl.
+	// CSC has no matmul kernel of its own: materialize CSR (same matrix)
+	// and delegate. Correctness is preserved; the CSR path is the reference
+	// impl.
 	return std::visit(
 		[&](const auto &mm) -> nb::object {
 			using T = typename matrix_scalar<std::decay_t<decltype(mm)>>::type;
