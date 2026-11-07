@@ -31,5 +31,5 @@
 #include "units.hpp"
 
 namespace dracolix {
-constexpr const char *version = "0.3.1";
+constexpr const char *version = "0.3.2";
 }

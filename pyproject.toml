@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "dracolix"
-version = "0.3.1"
+version = "0.3.2"
 description = "DracoLIX - A native C++ high performance scientific computing platform"
 readme = "docs/README.md"
 requires-python = ">=3.10"
@@ -13,24 +13,34 @@ requires-python = ">=3.10"
 # NumPy through the buffer protocol without linking against it. Install the
 # `numpy` extra if you want the interop/benchmark helpers.
 dependencies = []
-license = {text = "GPL-3.0-or-later"}
-authors = [{name = "Simon Stordal Amundgård"}]
-keywords = ["scientific-computing", "linear-algebra", "hpc", "numerical", "array", "dracolix", "numerical-computing", "machine-learning", "ai"]
-classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
-    "Programming Language :: Python :: 3.14",
-    "Programming Language :: Python :: 3.15",
-    "Topic :: Scientific/Engineering :: Mathematics",
-    "Typing :: Typed",
+license = { text = "GPL-3.0-or-later" }
+authors = [{ name = "Simon Stordal Amundgård" }]
+keywords = [
+	"scientific-computing",
+	"linear-algebra",
+	"hpc",
+	"numerical",
+	"array",
+	"dracolix",
+	"numerical-computing",
+	"machine-learning",
+	"ai",
 ]
-urls = {Repository = "https://github.com/draconis-engineering/dracolix"}
+classifiers = [
+	"Development Status :: 3 - Alpha",
+	"Intended Audience :: Science/Research",
+	"License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+	"Programming Language :: Python :: 3",
+	"Programming Language :: Python :: 3.10",
+	"Programming Language :: Python :: 3.11",
+	"Programming Language :: Python :: 3.12",
+	"Programming Language :: Python :: 3.13",
+	"Programming Language :: Python :: 3.14",
+	"Programming Language :: Python :: 3.15",
+	"Topic :: Scientific/Engineering :: Mathematics",
+	"Typing :: Typed",
+]
+urls = { Repository = "https://github.com/draconis-engineering/dracolix" }
 
 [tool.scikit-build]
 cmake.build-type = "Release"
