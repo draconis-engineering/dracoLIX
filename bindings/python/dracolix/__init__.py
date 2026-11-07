@@ -1,8 +1,7 @@
 """
 DracoLIX Python API - an outgoing-only binding to the native C++ core.
 
-Zero-NumPy runtime: the core never depends on numpy. Arrays interoperate with
-numpy / memoryview through the PEP 3118 buffer protocol only.
+Arrays interoperate with numpy / memoryview through the PEP 3118 buffer protocol.
 """
 
 import sys as _sys

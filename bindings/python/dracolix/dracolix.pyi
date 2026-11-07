@@ -149,7 +149,9 @@ class Array:
 # --------------------------------------------------------------------------
 # Constructors
 # --------------------------------------------------------------------------
-def array(data: Array | Sequence[Scalar] | Any, dtype: DTypeLike | None = None) -> Array:
+def array(
+    data: Array | Sequence[Scalar] | Any, dtype: DTypeLike | None = None
+) -> Array:
     """Create an array, always copying input data.
 
     ``dtype`` defaults to c128 (any complex), f64 (any float), i64 (all ints), or bool (all bools). The builtin ``complex`` type is accepted as an alias for c128.
@@ -157,7 +159,9 @@ def array(data: Array | Sequence[Scalar] | Any, dtype: DTypeLike | None = None) 
     the buffer protocol), and existing dracolix arrays.
     """
 
-def asarray(data: Array | Sequence[Scalar] | Any, dtype: DTypeLike | None = None) -> Array:
+def asarray(
+    data: Array | Sequence[Scalar] | Any, dtype: DTypeLike | None = None
+) -> Array:
     """Like ``array()`` but does not copy an existing dracolix Array."""
 
 def zeros(shape: int | Sequence[int], dtype: DTypeLike | None = None) -> Array:
@@ -188,7 +192,7 @@ def linspace(
 ) -> Array:
     """``num`` evenly spaced samples over ``[start, stop]`` (inclusive when
     ``endpoint`` is true). Defaults to f64, or c128 for complex arguments;
-    an explicit integer dtype truncates the computed values like NumPy."""
+    an explicit integer dtype truncates the computed values."""
 
 # --------------------------------------------------------------------------
 # Sparse matrices
@@ -370,5 +374,3 @@ def svd(A: Array) -> tuple[Array, Array, Array]:
 def cg_solve(A: CsrMatrix, b: Array | Sequence[Scalar] | Any) -> Array:
     """Conjugate-gradient solver for ``A x = b`` on a sparse square SPD CSR
     matrix. See :meth:`CsrMatrix.solve`."""
-
-

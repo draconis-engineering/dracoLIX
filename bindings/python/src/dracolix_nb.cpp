@@ -413,8 +413,7 @@ dracolix::DType promote_real_pair(dracolix::DType a, dracolix::DType b) {
 		// One side is f32 and the other is an integer: f32 holds integers up
 		// to 16 bits exactly; wider integers need f64.
 		dracolix::DType id = a_f ? b : a;
-		return int_bits(id) <= 16 ? dracolix::DType::F32
-								  : dracolix::DType::F64;
+		return int_bits(id) <= 16 ? dracolix::DType::F32 : dracolix::DType::F64;
 	}
 	bool au = is_unsigned_dtype(a), bu = is_unsigned_dtype(b);
 	int aw = int_bits(a), bw = int_bits(b);
@@ -446,9 +445,9 @@ dracolix::DType promote_pair(dracolix::DType a, dracolix::DType b) {
 					   : dracolix::DType::C64;
 		dracolix::DType c = ac ? a : b;
 		dracolix::DType other = ac ? b : a;
-		dracolix::DType component =
-			c == dracolix::DType::C128 ? dracolix::DType::F64
-									   : dracolix::DType::F32;
+		dracolix::DType component = c == dracolix::DType::C128
+										? dracolix::DType::F64
+										: dracolix::DType::F32;
 		dracolix::DType r = promote_real_pair(component, other);
 		return r == dracolix::DType::F32 ? dracolix::DType::C64
 										 : dracolix::DType::C128;
@@ -506,9 +505,8 @@ void promote_complex_mismatch(std::optional<DlxArray> &a,
 	if (a->dtype() == b->dtype())
 		return;
 	if (!is_complex_dtype(a->dtype()) && !is_complex_dtype(b->dtype()))
-		throw nb::type_error((std::string(op) +
-							  " requires matching dtypes")
-								 .c_str());
+		throw nb::type_error(
+			(std::string(op) + " requires matching dtypes").c_str());
 	dracolix::DType target = promote_pair(a->dtype(), b->dtype());
 	if (a->dtype() != target)
 		a.emplace(cast_dtype(*a, target));
@@ -1329,8 +1327,8 @@ uint64_t read_uint_at(const char *p, char tag, Py_ssize_t itemsize) {
 			return std::numeric_limits<uint64_t>::max();
 		return (uint64_t)d;
 	}
-	bool is_unsigned = (tag == 'B' || tag == 'H' || tag == 'I' ||
-						tag == 'L' || tag == 'N' || tag == 'Q');
+	bool is_unsigned = (tag == 'B' || tag == 'H' || tag == 'I' || tag == 'L' ||
+						tag == 'N' || tag == 'Q');
 	if (tag == '?')
 		return *(const bool *)p ? 1 : 0;
 	if (tag == 'f' || tag == 'd' || tag == 'e') {
@@ -1353,8 +1351,7 @@ uint64_t read_uint_at(const char *p, char tag, Py_ssize_t itemsize) {
 	return (uint64_t)read_int_at(p, tag, itemsize);
 }
 
-template <typename T>
-T from_raw(const char *p, char tag, Py_ssize_t itemsize) {
+template <typename T> T from_raw(const char *p, char tag, Py_ssize_t itemsize) {
 	if constexpr (dracolix::is_complex_v<T>) {
 		using R = typename T::value_type;
 		if (tag == 'Z') {
@@ -1898,10 +1895,9 @@ DlxArray dlx_linspace(nb::object start, nb::object stop, nb::object num,
 		throw nb::value_error("number of samples must be non-negative");
 	bool ep = endpoint.is_none() ? true : nb::cast<bool>(endpoint);
 	std::optional<dracolix::DType> dt = optional_dtype(dtype);
-	bool complex_result =
-		num_kind(start) == NumKind::Complex ||
-		num_kind(stop) == NumKind::Complex ||
-		(dt && is_complex_dtype(*dt));
+	bool complex_result = num_kind(start) == NumKind::Complex ||
+						  num_kind(stop) == NumKind::Complex ||
+						  (dt && is_complex_dtype(*dt));
 
 	if (n == 0) {
 		DlxArray base =
@@ -1915,7 +1911,8 @@ DlxArray dlx_linspace(nb::object start, nb::object stop, nb::object num,
 	if (complex_result) {
 		std::complex<double> a = to_complex(start);
 		std::complex<double> b = to_complex(stop);
-		dracolix::Array<std::complex<double>> out(std::vector<size_t>{(size_t)n});
+		dracolix::Array<std::complex<double>> out(
+			std::vector<size_t>{(size_t)n});
 		if (n == 1) {
 			out[0] = a;
 		} else {
@@ -3504,4 +3501,3 @@ NB_MODULE(_dracolix_nb, m) {
 	g_csr_type = reinterpret_cast<PyTypeObject *>(nb::type<DlxCsr>().ptr());
 	g_csc_type = reinterpret_cast<PyTypeObject *>(nb::type<DlxCsc>().ptr());
 }
-
