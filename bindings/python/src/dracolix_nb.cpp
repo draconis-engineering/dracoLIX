@@ -561,19 +561,26 @@ dracolix::Array<bool> cmp_bcast(const dracolix::Array<R> &a,
 		throw nb::type_error(
 			"ordering comparisons are not supported for complex dtypes");
 	} else {
-		auto comp = [](const R &x, const R &y) {
-			if constexpr (op == BinOp::Eq)
-				return x == y;
-			else if constexpr (op == BinOp::Ne)
-				return x != y;
-			else if constexpr (op == BinOp::Lt)
-				return x < y;
-			else if constexpr (op == BinOp::Le)
-				return x <= y;
-			else if constexpr (op == BinOp::Gt)
-				return x > y;
-			else
-				return x >= y;
+		auto comp = [](const R &x, const R &y) -> bool {
+			if constexpr (dracolix::is_complex_v<R>) {
+				if constexpr (op == BinOp::Eq)
+					return x == y;
+				else
+					return x != y;
+			} else {
+				if constexpr (op == BinOp::Eq)
+					return x == y;
+				else if constexpr (op == BinOp::Ne)
+					return x != y;
+				else if constexpr (op == BinOp::Lt)
+					return x < y;
+				else if constexpr (op == BinOp::Le)
+					return x <= y;
+				else if constexpr (op == BinOp::Gt)
+					return x > y;
+				else
+					return x >= y;
+			}
 		};
 
 		if (a.shape() == b.shape()) {
