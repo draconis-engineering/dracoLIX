@@ -503,24 +503,39 @@ template <typename T> class Array {
 		return acc;
 	}
 
-	// Returns the population variance of the array
-	double var() const {
+	// Returns the variance of the array (population by default). Uses the
+	// stable two-pass form mean((x - mean)^2); complex arrays use the squared
+	// modulus, matching NumPy's real-valued complex variance.
+	double var(int ddof = 0) const {
 		if (size_ == 0)
 			throw std::logic_error("var of empty array");
-		double mu = (double)mean();
+		validate_ddof(ddof, size_);
 		double accum = 0.0;
-		for (size_t i = 0; i < size_; ++i)
-			accum +=
-				static_cast<double>(data_[i]) * static_cast<double>(data_[i]);
-		return (accum / static_cast<double>(size_)) - mu * mu;
+		if constexpr (is_complex_v<T>) {
+			T mu = avg();
+			for (size_t i = 0; i < size_; ++i) {
+				T d = static_cast<T>(data_[i]) - mu;
+				accum += std::norm(d);
+			}
+		} else if constexpr (std::is_same_v<T, bool>) {
+			double mu = mean();
+			for (size_t i = 0; i < size_; ++i) {
+				double d = (data_[i] ? 1.0 : 0.0) - mu;
+				accum += d * d;
+			}
+		} else {
+			double mu = mean();
+			for (size_t i = 0; i < size_; ++i) {
+				double d = static_cast<double>(data_[i]) - mu;
+				accum += d * d;
+			}
+		}
+		return accum / static_cast<double>(size_ - static_cast<size_t>(ddof));
 	}
 
-	// Returns the population standard deviation of the array
-	double std() const {
-		double var_ = var();
-		if (var_ <= 0.0)
-			return 0.0;
-		return std::sqrt(var_);
+	// Returns the standard deviation of the array (population by default).
+	double std(int ddof = 0) const {
+		return std::sqrt(std::max(0.0, var(ddof)));
 	}
 
 	// Returns the index of the minimum element in the array
@@ -584,42 +599,65 @@ template <typename T> class Array {
 			axis, [](T a, T b) { return static_cast<T>(a * b); }, T{1});
 	}
 
-	// Returns the standard deviation along the given axis
-	Array std(size_t axis) const {
-		auto s = mean(axis);
-		auto div = static_cast<double>(shape_[axis]);
-		if constexpr (is_complex_v<T>) {
-			auto out = s;
-			for (size_t i = 0; i < out.size(); ++i)
-				out[i] = std::sqrt(std::max(
-					0.0, (double)out[i] -
-							 (double)out[i] * (double)out[i] / (div * div)));
-			return out;
-		} else {
-			auto out = s.template astype<double>();
-			for (size_t i = 0; i < out.size(); ++i)
-				out[i] = std::sqrt(std::max(
-					0.0, (double)out[i] -
-							 (double)out[i] * (double)out[i] / (div * div)));
-			return out;
-		}
+	// Returns the standard deviation along the given axis (real f64 output).
+	Array<double> std_axis(size_t axis, int ddof = 0) const {
+		auto out = var_axis(axis, ddof);
+		for (size_t i = 0; i < out.size(); ++i)
+			out[i] = std::sqrt(std::max(0.0, out[i]));
+		return out;
 	}
 
-	// Returns the variance along the given axis
-	Array var(size_t axis) const {
-		auto s = mean(axis);
-		auto div = static_cast<double>(shape_[axis]);
-		if constexpr (is_complex_v<T>) {
-			auto out = s;
-			for (size_t i = 0; i < out.size(); ++i)
-				out[i] = (double)out[i] * (double)out[i] / (div * div);
-			return out;
+	// Returns the variance along the given axis (real f64 output). Real inputs
+	// use a stable two-pass mean; complex inputs use the squared modulus.
+	Array<double> var_axis(size_t axis, int ddof = 0) const {
+		if (axis >= ndim_)
+			throw std::out_of_range("reduce axis OOB");
+		size_t n = shape_[axis];
+		if (n == 0)
+			throw std::invalid_argument("variance of zero-length axis");
+		validate_ddof(ddof, n);
+		std::vector<size_t> out_shape;
+		for (size_t d = 0; d < ndim_; ++d)
+			if (d != axis)
+				out_shape.push_back(shape_[d]);
+		if (out_shape.empty())
+			out_shape = {1};
+		Array<double> out(out_shape);
+		std::fill(out.data(), out.data() + out.size(), 0.0);
+
+		if constexpr (std::is_same_v<T, bool>) {
+			// Counting trues avoids the bool arithmetic OR pitfall.
+			for (size_t flat = 0; flat < size_; ++flat) {
+				std::vector<size_t> idx = unravel(flat);
+				size_t out_flat = axis_out_index(idx, axis, out);
+				out[out_flat] += data_[flat] ? 1.0 : 0.0;
+			}
+			double denom = static_cast<double>(n - static_cast<size_t>(ddof));
+			for (size_t i = 0; i < out.size(); ++i) {
+				double p = out[i] / static_cast<double>(n);
+				out[i] = static_cast<double>(n) * p * (1.0 - p) / denom;
+			}
 		} else {
-			auto out = s.template astype<double>();
+			auto mu = mean_axis(axis);
+			for (size_t flat = 0; flat < size_; ++flat) {
+				std::vector<size_t> idx = unravel(flat);
+				size_t out_flat = axis_out_index(idx, axis, out);
+				if constexpr (is_complex_v<T>) {
+					double d = std::abs(static_cast<T>(data_[flat]) -
+										mu[out_flat]);
+					out[out_flat] += d * d;
+				} else {
+					double d = static_cast<double>(data_[flat]) -
+							   static_cast<double>(mu[out_flat]);
+					out[out_flat] += d * d;
+				}
+			}
+			double denom =
+				static_cast<double>(n - static_cast<size_t>(ddof));
 			for (size_t i = 0; i < out.size(); ++i)
-				out[i] = (double)out[i] * (double)out[i] / (div * div);
-			return out;
+				out[i] /= denom;
 		}
+		return out;
 	}
 
 	// Returns the index of the minimum element along the given axis
@@ -853,6 +891,37 @@ template <typename T> class Array {
 		for (size_t i = 0; i < size_; ++i)
 			res.data_[i] = fn(data_[i], s);
 		return res;
+	}
+
+	// Validate the delta-degrees-of-freedom for variance/std.
+	static void validate_ddof(int ddof, size_t n) {
+		if (ddof < 0 || static_cast<size_t>(ddof) >= n)
+			throw std::invalid_argument("ddof must satisfy 0 <= ddof < n");
+	}
+
+	// Flat index -> multi-index (row-major).
+	std::vector<size_t> unravel(size_t flat) const {
+		std::vector<size_t> idx(ndim_);
+		for (int d = (int)ndim_ - 1; d >= 0; --d) {
+			idx[d] = flat % shape_[d];
+			flat /= shape_[d];
+		}
+		return idx;
+	}
+
+	// Flat index into an axis-reduced output for a given input multi-index.
+	template <typename U>
+	static size_t axis_out_index(const std::vector<size_t> &idx, size_t axis,
+								 const Array<U> &out) {
+		size_t out_flat = 0;
+		for (int d = (int)idx.size() - 1, out_d = (int)out.ndim() - 1; d >= 0;
+			 --d) {
+			if ((size_t)d == axis)
+				continue;
+			out_flat += idx[d] * out.strides()[out_d];
+			--out_d;
+		}
+		return out_flat;
 	}
 
 	// Truthiness under NumPy semantics: non-zero (NaN counts as non-zero).

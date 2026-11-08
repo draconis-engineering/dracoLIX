@@ -16,57 +16,222 @@ release-level scope, semantic decisions, and deferrals.
 
 ---
 
-## v0.3.4 (Planned)
+## v0.3.6 (Planned)
 
 ### Goals
 
-- Correct and expose `std`/`var`.
+NumPy-inspired shape manipulation that is currently missing or subtly wrong.
 
 ### In scope
 
-- Fix `Array::std(axis)` / `Array::var(axis)` (currently `s - s²/n²`, which is
-  not variance) to use `E[x²] − E[x]²` with a numerically stable two-pass
-  fallback where needed (`core/include/dracolix/array.hpp`).
-- Add `ddof` support (default `0`, population) to global and axis forms.
-- Decide and implement complex `std`/`var` (NumPy returns a **real** array
-  computed from `mean(|x − mean|²)`; the current code path throws via
-  `mean()`).
-- Bind `std`/`var` to Python (methods) once the core math is correct.
-- Retire the dead `bindings/python/dracolix/dracolix.pyi` and keep
-  `__init__.pyi` as the single shipped stub (see v0.3.3 decision 8).
+- Fix `Array::reshape`: it currently pads or truncates when the element count
+  changes (`element copy + resize`); NumPy requires the same total size and
+  supports a single `-1` placeholder. Add a `reshaped()` (copy returning)
+  helper; keep in-place `reshape` for C++ callers.
+- `ravel()` / `flatten()` (copy; `order="C"` only).
+- `transpose(axes=None)` for N-D (general permutation), `swapaxes(a, b)`,
+  `moveaxis(src, dst)` (current `transpose()` is a 2-D copy only).
+- `squeeze(axis=None)`, `expand_dims(axis)`, `atleast_1d/2d`.
+- `broadcast_to(shape)` (materialized copy) and `broadcast_arrays` if cheap.
+- Stacking: `concatenate`, `stack`, `vstack`, `hstack`.
+- Preserve dtype; reject incompatible sizes with `ValueError`.
 
 ### Out of scope
 
-- Module-level reduction functions.
-- Integer reduction promotion/overflow changes.
+- Fancy/boolean-mask indexing.
+- Public stride/view API, `order="F"`, structured dtypes.
+- Zero-cost views (materialized copies are acceptable first).
 
 ### Design decisions
 
-- **D1** — `std`/`var` return `f64` (real) for all real/integer/bool inputs;
-  complex inputs return `f64` variance/std from the modulus, matching NumPy.
-- **D2** — `ddof` must satisfy `0 <= ddof < n`; otherwise raise `ValueError`
-  (NumPy returns NaN/inf with warnings; we prefer an explicit error).
-- **D3** — Axis reductions over a zero-length reduced dimension raise
-  `ValueError` (consistent with argmin/argmax), rather than returning NaN.
+- **D1** - Shape arguments accept `int` or sequences; a single `-1` is
+  inferred from the total size. More than one `-1`, or a non-divisible size,
+  raises `ValueError`.
+- **D2** - `reshape` returns a new array (never aliases) until a view model
+  exists; document the copy cost.
+- **D3** - Axis arguments use the shared normalizer and accept negatives.
+- **D4** - `transpose()` with no arguments reverses all axes (NumPy default),
+  replacing the current 2-D-only restriction.
 
 ### Testing plan
 
-- Population vs sample (`ddof=1`) against hand-computed values.
-- Axis forms on 1-D/2-D, negative axis, zero-length dimension.
-- Complex variance against `numpy.var`.
-- Bool arrays against `numpy.var`/`numpy.std`.
+- `reshape` with `-1`, invalid sizes, 1-D <-> 2-D <-> 3-D round-trips.
+- N-D transpose/swapaxes/moveaxis against `numpy`.
+- squeeze/expand_dims edge cases (size-1 axes, out-of-range).
+- concatenate/stack/ravel/flatten dtype and shape checks.
 
 ### Release checklist
 
-- [ ] Core math fixed and covered by C++ tests
+- [ ] Core shape helpers implemented
 - [ ] Bindings + canonical stub
-- [ ] Python tests added
+- [ ] Python tests (numpy cross-checks where available)
 - [ ] CHANGELOG + version bump
 - [ ] ctest + pytest green
 
 ---
 
-## v0.3.3 (In progress)
+## v0.3.5 (Planned)
+
+### Goals
+
+Support zero-size (empty) arrays end-to-end. Today the core builds them, but
+the Python layer rejects them at construction/indexing, which blocks
+masking/filtering use cases and NumPy empty identities.
+
+### In scope
+
+- Remove the binding guards (`dracolix_nb.cpp` ~991, 1646, 1766, 1776) and
+  audit methods that assume `size_ > 0`.
+- Construction: `array([])`, `zeros(0)`, `zeros((2, 0))`, `empty/full` with a
+  zero dim, `arange(0)`, `linspace(..., num=0)`.
+- Slicing: zero-length slices (`a[0:0]`), empty views, `tolist() == []`.
+- Buffer export with zero length (PEP 3118).
+- Reductions on empty arrays follow NumPy identities:
+  `sum() -> 0`, `prod() -> 1`, `any() -> False`, `all() -> True`;
+  `min`/`max`/`argmin`/`argmax` raise `ValueError`; `mean`/`std`/`var` raise
+  `ValueError` (we keep explicit errors instead of NumPy's NaN + warning).
+- Axis reductions over a zero-length reduced axis: `sum -> zeros`,
+  `prod -> ones`, `any -> False`, `all -> True`; stats raise.
+
+### Out of scope
+
+- 0-d/scalar arrays (keep `ndim >= 1`).
+- `resize`/`repeat`/`pad`.
+
+### Design decisions
+
+- **D1** - A zero dimension is legal; the total element count is the product
+  of dimensions and may be `0`.
+- **D2** - `array([])` infers `f64` (same as an empty Python float list would
+  in NumPy) and produces shape `(0,)`.
+- **D3** - Empty reductions use the identities above; statistical reductions
+  keep raising `ValueError` for a zero-length reduced axis.
+
+### Testing plan
+
+- Construct/extend/tolist/buffer round-trips for shapes `(0,)`, `(2, 0)`.
+- Every reduction on empty arrays and zero-length axes.
+- Slicing to empty and back (where supported).
+- `numpy` cross-checks for dtypes and identities.
+
+### Release checklist
+
+- [ ] Binding guards removed, invariants audited
+- [ ] Core/binding empty handling
+- [ ] Tests added and green
+- [ ] CHANGELOG + version bump
+
+---
+
+## v0.3.4 (In progress - code complete, unreleased)
+
+### Goals
+
+Correct and expose `std`/`var`, complete the arithmetic operator set, and add
+the missing elementwise math (ufunc) surface.
+
+### In scope
+
+- Fix `Array::std(axis)` / `Array::var(axis)` (currently `s - s²/n²`, which is
+  not variance) with a stable two-pass `mean(|x − mean|²)` computation
+  (`core/include/dracolix/array.hpp`).
+- Add `ddof` support (default `0`, population) to global and axis forms.
+- Complex `std`/`var`: compute from the modulus and return real `f64`.
+- Bind `std`/`var` (global + axis + `ddof`) to Python.
+- Arithmetic completeness:
+  - `//` and `%` (both directions), with Python/NumPy floor/remainder signs.
+  - unary `+`, fix unary `-` for bool (raise, like NumPy).
+  - `~`, `&`, `|`, `^` (bool + integers only).
+  - `<<` and `>>` (integers only).
+  - `pow`/`rpow` already exist; keep semantics, add tests.
+- Elementwise math (module-level, NumPy-style): `sqrt`, `square`, `exp`,
+  `expm1`, `log`, `log1p`, `log2`, `log10`, `sin`, `cos`, `tan`, `asin`,
+  `acos`, `atan`, `sinh`, `cosh`, `tanh`, `floor`, `ceil`, `trunc`,
+  `isfinite`, `isnan`, `isinf`.
+- Retire the dead `bindings/python/dracolix/dracolix.pyi` and keep
+  `__init__.pyi` as the single shipped stub (see v0.3.3 decision 8).
+
+### Out of scope
+
+- Module-level reduction functions (`dracolix.sum(a)`, ...).
+- In-place operators (`+=`, ...), `divmod`, `round`.
+- Integer reduction promotion/overflow changes; power overflow checks.
+- Fancy indexing, reshape work (see v0.3.5/v0.3.6).
+
+### Design decisions
+
+- **D1** - `std`/`var` return `f64` (real) for all real/integer/bool inputs;
+  complex inputs return `f64` computed from `mean(|x − mean|²)`, matching
+  NumPy. Two-pass algorithms are used to avoid catastrophic cancellation.
+- **D2** - `ddof` must satisfy `0 <= ddof < n`; otherwise raise `ValueError`
+  (NumPy returns NaN/inf with warnings; we prefer an explicit error).
+- **D3** - Axis stats are exposed as `std_axis(axis, ddof=0)` /
+  `var_axis(axis, ddof=0)` in C++, with global `std(ddof=0)` /
+  `var(ddof=0)`. Renaming avoids the `arr.var(0)` ambiguity between "axis 0"
+  and "ddof 0"; the old (broken, unused) axis overloads are removed. The
+  Python surface follows NumPy's argument order: `arr.std(axis=None, ddof=0)`,
+  so positional `arr.std(0)` reduces axis 0 and the scalar form uses the
+  keyword (`arr.std(ddof=1)`).
+- **D4** - Axis reductions over a zero-length reduced dimension raise
+  `ValueError` (consistent with argmin/argmax), rather than returning NaN.
+- **D5** - Bool arithmetic remains rejected (`TypeError`): NumPy's bool
+  arithmetic has surprising promotions (`bool+bool -> bool`,
+  `bool**bool -> int8`), and we keep the explicit-error policy already shipped
+  in 0.3.3. Unary `-`/`+` and `<<`/`>>` on bool also raise; `~bool` is
+  logical NOT and is supported, and bitwise `&`/`|`/`^` between bool arrays
+  stays bool.
+- **D6** - `//`/`%` follow Python/NumPy sign semantics (floor towards `-inf`,
+  remainder has the divisor's sign) for all real dtypes. Integer division or
+  remainder by zero raises `ZeroDivisionError`; float follows IEEE
+  (`inf`/`nan`, no warnings); complex raises `TypeError`.
+- **D7** - Bitwise `& | ^ ~` work for bool and integer dtypes (promoted via
+  the existing pair rules); float/complex raise `TypeError`. Shifts require
+  integer operands (bool is rejected, see D5); the shift count must be
+  `0 <= count < bit width`,
+  otherwise `ValueError` (avoids C++ UB). Left-shift wraps through the
+  unsigned type; scalars keep the existing weak-promotion behavior (a Python
+  `int` operand promotes like `i64`).
+- **D8** - Ufunc dtype rules: `f32 -> f32`; `f64 -> f64`; integers/bool ->
+  `f64`; `c64 -> c64` and `c128 -> c128` for complex-capable functions.
+  `floor`/`ceil`/`trunc` reject complex. IEEE domain results are returned
+  unsuppressed (`sqrt(-1) -> nan`, `log(0) -> -inf`); no warnings.
+- **D9** - Ufuncs are **module-level only** (`dracolix.sqrt(a)`), matching
+  NumPy; no `Array.sqrt()` methods. In 0.3.4 they accept `Array` inputs only
+  (list/scalar coercion is not wired into the ufunc entry points yet).
+  `square` preserves the input dtype (including bool); `abs`/`absolute` keep
+  returning real magnitudes for complex.
+- **D10** - `isfinite`/`isnan`/`isinf` return bool arrays for every dtype.
+  For complex input a value is finite when **both** components are finite,
+  and NaN/inf when **either** component is NaN/inf (NumPy parity).
+- **D11** - `pow`/`rpow` stay as shipped: integer negative exponents raise
+  `ValueError`, integer results wrap (no overflow checks), bool pow raises.
+- **D12** - Retire `dracolix.pyi`; `__init__.pyi` remains the only stub.
+
+### Testing plan
+
+- `var`/`std`: population vs sample (`ddof=1`), 1-D/2-D, negative axis,
+  bool, complex, invalid `ddof`, complex raise-free parity with `numpy.var`.
+- Arithmetic: `//`, `%`, mixed int/float, negative operands, division by
+  zero, complex rejection, reflected forms.
+- Unary/bitwise/shift operators: bool, signed/unsigned, dtype preservation,
+  invalid operands, invalid shift counts.
+- Ufuncs: dtype matrix (f32/f64/int/bool/c64/c128), domain/edge values, shape
+  preservation, complex restrictions, `numpy` cross-checks.
+- Canonical stub has no references to `dracolix.pyi`.
+
+### Release checklist
+
+- [x] Core std/var fixed and covered by C++ tests
+- [x] Bindings + canonical stub
+- [x] Arithmetic/ufuncs bound and exported from `__init__.py`
+- [x] Python tests added
+- [x] CHANGELOG + version bump
+- [x] ctest + pytest green
+- [ ] Tag and publish v0.3.4
+
+---
+
+## v0.3.3 (Released 2026-11-08)
 
 ### Goals
 
@@ -94,7 +259,8 @@ Python.
 - `cumsum`/`cumprod`, `sort`/`argsort`, `where`, `nonzero`, `count_nonzero`.
 - Integer `sum`/`prod` dtype promotion and overflow handling.
 - Aligning `sum`/`min`/`max`/`mean` empty-array behavior with the new NumPy
-  identities (they still raise).
+  identities (they still raise) → **v0.3.5**, together with empty-array
+  construction support.
 
 ### Design decisions
 
@@ -171,11 +337,11 @@ Python.
 
 ### Release checklist
 
-- [ ] Core reductions fixed/added
-- [ ] Bindings registered
-- [ ] Canonical stub updated (no `std`/`var`)
-- [ ] Tests added and green (`pytest`, `ctest`)
-- [ ] CHANGELOG + version bump to 0.3.3
+- [x] Core reductions fixed/added
+- [x] Bindings registered
+- [x] Canonical stub updated (no `std`/`var`)
+- [x] Tests added and green (`pytest`, `ctest`)
+- [x] CHANGELOG + version bump to 0.3.3
 - [ ] Tag/publish (only when explicitly requested)
 
 ---

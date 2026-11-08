@@ -518,7 +518,26 @@ void promote_complex_mismatch(std::optional<DlxArray> &a,
 // Broadcast helpers (same semantics as core Array<T>::elementwise)
 // ---------------------------------------------------------------------------
 
-enum class BinOp { Add, Sub, Mul, Div, Pow, Eq, Ne, Lt, Le, Gt, Ge };
+enum class BinOp {
+	Add,
+	Sub,
+	Mul,
+	Div,
+	FloorDiv,
+	Mod,
+	Pow,
+	And,
+	Or,
+	Xor,
+	LShift,
+	RShift,
+	Eq,
+	Ne,
+	Lt,
+	Le,
+	Gt,
+	Ge
+};
 
 std::vector<size_t> bcast_shape(const std::vector<size_t> &a,
 								const std::vector<size_t> &b) {
@@ -643,13 +662,72 @@ template <typename R> R pow_scalar(R base, R exponent) {
 	}
 }
 
-template <typename R>
-dracolix::Array<R> pow_bcast(const dracolix::Array<R> &a,
-							 const dracolix::Array<R> &b) {
+[[noreturn]] void throw_zero_division(const char *msg) {
+	PyErr_SetString(PyExc_ZeroDivisionError, msg);
+	throw nb::python_error();
+}
+
+// Python/NumPy floor division: quotient floored towards -inf.
+template <typename R> R floor_div_scalar(R a, R b) {
+	if constexpr (std::is_integral_v<R>) {
+		if (b == R(0))
+			throw_zero_division("integer division or modulo by zero");
+		R q = static_cast<R>(a / b);
+		R r = static_cast<R>(a % b);
+		if constexpr (std::is_signed_v<R>) {
+			if (r != R(0) && ((r < R(0)) != (b < R(0))))
+				--q;
+		}
+		return q;
+	} else {
+		return static_cast<R>(std::floor(a / b));
+	}
+}
+
+// Python/NumPy remainder: the result has the divisor's sign.
+template <typename R> R mod_scalar(R a, R b) {
+	if constexpr (std::is_integral_v<R>) {
+		if (b == R(0))
+			throw_zero_division("integer division or modulo by zero");
+		R r = static_cast<R>(a % b);
+		if constexpr (std::is_signed_v<R>) {
+			if (r != R(0) && ((r < R(0)) != (b < R(0))))
+				r = static_cast<R>(r + b);
+		}
+		return r;
+	} else {
+		R r = static_cast<R>(std::fmod(a, b));
+		if (r != R(0) && ((r < R(0)) != (b < R(0))))
+			r = static_cast<R>(r + b);
+		else if (r == R(0))
+			r = std::copysign(R(0), b);
+		return r;
+	}
+}
+
+// Shift with explicit range checks (avoids C++ UB for bad counts).
+template <typename R> R shift_scalar(R a, R b, bool left) {
+	if constexpr (std::is_signed_v<R>) {
+		if (b < R(0))
+			throw nb::value_error("negative shift count");
+	}
+	uint64_t n = static_cast<uint64_t>(b);
+	if (n >= sizeof(R) * 8)
+		throw nb::value_error("shift count out of range");
+	using U = std::make_unsigned_t<R>;
+	if (left)
+		return static_cast<R>(static_cast<U>(a) << n);
+	return static_cast<R>(a >> n);
+}
+
+// Elementwise bind with broadcasting.
+template <typename R, typename F>
+dracolix::Array<R> zip_bcast(const dracolix::Array<R> &a,
+							 const dracolix::Array<R> &b, F fn) {
 	if (a.shape() == b.shape()) {
 		dracolix::Array<R> out(a.shape());
 		for (size_t i = 0; i < a.size(); ++i)
-			out[i] = pow_scalar(a[i], b[i]);
+			out[i] = fn(a[i], b[i]);
 		return out;
 	}
 	auto bs = bcast_shape(a.shape(), b.shape());
@@ -664,7 +742,7 @@ dracolix::Array<R> pow_bcast(const dracolix::Array<R> &a,
 		}
 		size_t off_a = bcast_offset(a.shape(), a.strides(), idx, bnd);
 		size_t off_b = bcast_offset(b.shape(), b.strides(), idx, bnd);
-		out[flat] = pow_scalar(a[off_a], b[off_b]);
+		out[flat] = fn(a[off_a], b[off_b]);
 	}
 	return out;
 }
@@ -683,7 +761,54 @@ DlxArray bin_typed(const DlxArray &A, const DlxArray &B, BinOp op) {
 	case BinOp::Div:
 		return DlxArray(a / b);
 	case BinOp::Pow:
-		return DlxArray(pow_bcast(a, b));
+		return DlxArray(
+			zip_bcast(a, b, [](R x, R y) { return pow_scalar(x, y); }));
+	case BinOp::FloorDiv:
+		if constexpr (dracolix::is_complex_v<R>)
+			throw nb::type_error(
+				"floor division is not supported for complex dtypes");
+		else
+			return DlxArray(zip_bcast(
+				a, b, [](R x, R y) { return floor_div_scalar(x, y); }));
+	case BinOp::Mod:
+		if constexpr (dracolix::is_complex_v<R>)
+			throw nb::type_error(
+				"modulo is not supported for complex dtypes");
+		else
+			return DlxArray(zip_bcast(
+				a, b, [](R x, R y) { return mod_scalar(x, y); }));
+	case BinOp::And:
+		if constexpr (std::is_integral_v<R>)
+			return DlxArray(zip_bcast(
+				a, b, [](R x, R y) -> R { return static_cast<R>(x & y); }));
+		else
+			throw nb::type_error(
+				"bitwise operators require integer or bool arrays");
+	case BinOp::Or:
+		if constexpr (std::is_integral_v<R>)
+			return DlxArray(zip_bcast(
+				a, b, [](R x, R y) -> R { return static_cast<R>(x | y); }));
+		else
+			throw nb::type_error(
+				"bitwise operators require integer or bool arrays");
+	case BinOp::Xor:
+		if constexpr (std::is_integral_v<R>)
+			return DlxArray(zip_bcast(
+				a, b, [](R x, R y) -> R { return static_cast<R>(x ^ y); }));
+		else
+			throw nb::type_error(
+				"bitwise operators require integer or bool arrays");
+	case BinOp::LShift:
+	case BinOp::RShift: {
+		if constexpr (std::is_integral_v<R> && !std::is_same_v<R, bool>) {
+			return DlxArray(zip_bcast(a, b, [op](R x, R y) -> R {
+				return shift_scalar(x, y, op == BinOp::LShift);
+			}));
+		} else {
+			throw nb::type_error(
+				"shift operators require integer arrays");
+		}
+	}
 	case BinOp::Eq:
 		return DlxArray(cmp_bcast<R, BinOp::Eq>(a, b));
 	case BinOp::Ne:
@@ -779,11 +904,25 @@ nb::object dlx_bin_op(nb::object x, nb::object y, BinOp op) {
 
 	dracolix::DType ra = A->dtype(), rb = B->dtype();
 	dracolix::DType r = promote_pair(ra, rb);
+	bool bitwise = op == BinOp::And || op == BinOp::Or || op == BinOp::Xor;
+	bool shift = op == BinOp::LShift || op == BinOp::RShift;
+	if (bitwise || shift) {
+		auto bad = [](dracolix::DType d) {
+			return d == dracolix::DType::F32 || d == dracolix::DType::F64 ||
+				   is_complex_dtype(d);
+		};
+		if (bad(ra) || bad(rb))
+			throw nb::type_error(
+				"bitwise operators require integer or bool arrays");
+	}
+	if (shift && (ra == dracolix::DType::Bool || rb == dracolix::DType::Bool))
+		return nb::not_implemented();
 	if (r == dracolix::DType::Bool) {
-		// Bool never participates in arithmetic (NumPy raises), but
-		// elementwise comparisons of bool arrays are well defined.
+		// Bool never participates in arithmetic (NumPy's bool promotions are
+		// surprising); comparisons and bitwise &/|/^ remain well defined.
 		if (op == BinOp::Add || op == BinOp::Sub || op == BinOp::Mul ||
-			op == BinOp::Div || op == BinOp::Pow)
+			op == BinOp::Div || op == BinOp::FloorDiv || op == BinOp::Mod ||
+			op == BinOp::Pow || shift)
 			return nb::not_implemented();
 	}
 	if (op == BinOp::Div && r != dracolix::DType::C64 &&
@@ -818,6 +957,39 @@ nb::object dlx_rpow(nb::object x, nb::object y) {
 	// __rpow__(self, other) means ``other ** self``.
 	return dlx_bin_op(y, x, BinOp::Pow);
 }
+nb::object dlx_floordiv(nb::object x, nb::object y) {
+	return dlx_bin_op(x, y, BinOp::FloorDiv);
+}
+nb::object dlx_rfloordiv(nb::object x, nb::object y) {
+	return dlx_bin_op(y, x, BinOp::FloorDiv);
+}
+nb::object dlx_mod(nb::object x, nb::object y) {
+	return dlx_bin_op(x, y, BinOp::Mod);
+}
+nb::object dlx_rmod(nb::object x, nb::object y) {
+	return dlx_bin_op(y, x, BinOp::Mod);
+}
+nb::object dlx_and(nb::object x, nb::object y) {
+	return dlx_bin_op(x, y, BinOp::And);
+}
+nb::object dlx_or(nb::object x, nb::object y) {
+	return dlx_bin_op(x, y, BinOp::Or);
+}
+nb::object dlx_xor(nb::object x, nb::object y) {
+	return dlx_bin_op(x, y, BinOp::Xor);
+}
+nb::object dlx_lshift(nb::object x, nb::object y) {
+	return dlx_bin_op(x, y, BinOp::LShift);
+}
+nb::object dlx_rlshift(nb::object x, nb::object y) {
+	return dlx_bin_op(y, x, BinOp::LShift);
+}
+nb::object dlx_rshift(nb::object x, nb::object y) {
+	return dlx_bin_op(x, y, BinOp::RShift);
+}
+nb::object dlx_rrshift(nb::object x, nb::object y) {
+	return dlx_bin_op(y, x, BinOp::RShift);
+}
 nb::object dlx_eq(nb::object x, nb::object y) {
 	return dlx_bin_op(x, y, BinOp::Eq);
 }
@@ -845,10 +1017,46 @@ nb::object dlx_neg(nb::object x) {
 		[](auto &arr) -> nb::object {
 			using T = typename array_scalar<std::decay_t<decltype(arr)>>::type;
 			if constexpr (std::is_same_v<T, bool>) {
-				auto v = arr.template astype<int32_t>();
-				return nb::cast<DlxArray>(DlxArray(v * int32_t(-1)));
+				throw nb::type_error(
+					"unary negation is not supported for bool arrays");
 			} else {
 				return nb::cast<DlxArray>(DlxArray(arr * T(-1)));
+			}
+		},
+		a.v);
+}
+
+DlxArray dlx_pos(const DlxArray &a) {
+	return std::visit(
+		[](const auto &arr) -> DlxArray {
+			using T = typename array_scalar<std::decay_t<decltype(arr)>>::type;
+			if constexpr (std::is_same_v<T, bool>) {
+				throw nb::type_error(
+					"unary plus is not supported for bool arrays");
+			} else {
+				return DlxArray(arr.clone());
+			}
+		},
+		a.v);
+}
+
+DlxArray dlx_invert(const DlxArray &a) {
+	return std::visit(
+		[](const auto &arr) -> DlxArray {
+			using T = typename array_scalar<std::decay_t<decltype(arr)>>::type;
+			if constexpr (std::is_same_v<T, bool>) {
+				dracolix::Array<bool> out(arr.shape());
+				for (size_t i = 0; i < arr.size(); ++i)
+					out[i] = !static_cast<bool>(arr[i]);
+				return DlxArray(std::move(out));
+			} else if constexpr (std::is_integral_v<T>) {
+				dracolix::Array<T> out(arr.shape());
+				for (size_t i = 0; i < arr.size(); ++i)
+					out[i] = static_cast<T>(~arr[i]);
+				return DlxArray(std::move(out));
+			} else {
+				throw nb::type_error(
+					"bitwise NOT requires an integer or bool array");
 			}
 		},
 		a.v);
@@ -2212,6 +2420,56 @@ DlxArray dlx_mean_axis(const DlxArray &a, int64_t axis) {
 		a.v);
 }
 
+nb::object dlx_var(const DlxArray &a, int64_t ddof) {
+	if (a.size() == 0)
+		throw nb::value_error("variance of empty array");
+	return std::visit(
+		[&](const auto &arr) -> nb::object {
+			return nb::cast(arr.var((int)ddof));
+		},
+		a.v);
+}
+
+nb::object dlx_std(const DlxArray &a, int64_t ddof) {
+	if (a.size() == 0)
+		throw nb::value_error("standard deviation of empty array");
+	return std::visit(
+		[&](const auto &arr) -> nb::object {
+			return nb::cast(arr.std((int)ddof));
+		},
+		a.v);
+}
+
+DlxArray dlx_var_axis(const DlxArray &a, int64_t axis, int64_t ddof) {
+	axis = normalize_axis(a, axis);
+	return std::visit(
+		[&](const auto &arr) -> DlxArray {
+			return DlxArray(arr.var_axis((size_t)axis, (int)ddof));
+		},
+		a.v);
+}
+
+DlxArray dlx_std_axis(const DlxArray &a, int64_t axis, int64_t ddof) {
+	axis = normalize_axis(a, axis);
+	return std::visit(
+		[&](const auto &arr) -> DlxArray {
+			return DlxArray(arr.std_axis((size_t)axis, (int)ddof));
+		},
+		a.v);
+}
+
+nb::object dlx_var_dispatch(const DlxArray &a, nb::object axis, int64_t ddof) {
+	if (axis.is_none())
+		return dlx_var(a, ddof);
+	return nb::cast<DlxArray>(dlx_var_axis(a, nb::cast<int64_t>(axis), ddof));
+}
+
+nb::object dlx_std_dispatch(const DlxArray &a, nb::object axis, int64_t ddof) {
+	if (axis.is_none())
+		return dlx_std(a, ddof);
+	return nb::cast<DlxArray>(dlx_std_axis(a, nb::cast<int64_t>(axis), ddof));
+}
+
 nb::object dlx_prod(const DlxArray &a) {
 	return std::visit(
 		[](const auto &arr) -> nb::object {
@@ -2454,7 +2712,211 @@ DlxArray dlx_angle(const DlxArray &a) {
 		a.v);
 }
 
-// ---------------------------------------------------------------------------
+// -------------------------------------------------------------------------
+// Elementwise math (ufuncs)
+// -------------------------------------------------------------------------
+enum class UFunc {
+	Sqrt,
+	Exp,
+	Expm1,
+	Log,
+	Log1p,
+	Log2,
+	Log10,
+	Sin,
+	Cos,
+	Tan,
+	Asin,
+	Acos,
+	Atan,
+	Sinh,
+	Cosh,
+	Tanh,
+	Floor,
+	Ceil,
+	Trunc
+};
+
+bool ufunc_complex_ok(UFunc f) {
+	return f != UFunc::Floor && f != UFunc::Ceil && f != UFunc::Trunc;
+}
+
+template <typename T> T apply_real_ufunc(UFunc f, T v) {
+	switch (f) {
+	case UFunc::Sqrt:
+		return static_cast<T>(std::sqrt(v));
+	case UFunc::Exp:
+		return static_cast<T>(std::exp(v));
+	case UFunc::Expm1:
+		return static_cast<T>(std::expm1(v));
+	case UFunc::Log:
+		return static_cast<T>(std::log(v));
+	case UFunc::Log1p:
+		return static_cast<T>(std::log1p(v));
+	case UFunc::Log2:
+		return static_cast<T>(std::log2(v));
+	case UFunc::Log10:
+		return static_cast<T>(std::log10(v));
+	case UFunc::Sin:
+		return static_cast<T>(std::sin(v));
+	case UFunc::Cos:
+		return static_cast<T>(std::cos(v));
+	case UFunc::Tan:
+		return static_cast<T>(std::tan(v));
+	case UFunc::Asin:
+		return static_cast<T>(std::asin(v));
+	case UFunc::Acos:
+		return static_cast<T>(std::acos(v));
+	case UFunc::Atan:
+		return static_cast<T>(std::atan(v));
+	case UFunc::Sinh:
+		return static_cast<T>(std::sinh(v));
+	case UFunc::Cosh:
+		return static_cast<T>(std::cosh(v));
+	case UFunc::Tanh:
+		return static_cast<T>(std::tanh(v));
+	case UFunc::Floor:
+		return static_cast<T>(std::floor(v));
+	case UFunc::Ceil:
+		return static_cast<T>(std::ceil(v));
+	case UFunc::Trunc:
+		return static_cast<T>(std::trunc(v));
+	}
+	return v;
+}
+
+template <typename T>
+std::complex<T> apply_complex_ufunc(UFunc f, std::complex<T> z) {
+	using C = std::complex<T>;
+	switch (f) {
+	case UFunc::Sqrt:
+		return std::sqrt(z);
+	case UFunc::Exp:
+		return std::exp(z);
+	case UFunc::Expm1:
+		return std::exp(z) - C(1);
+	case UFunc::Log:
+		return std::log(z);
+	case UFunc::Log1p:
+		return std::log(z + C(1));
+	case UFunc::Log2:
+		return std::log(z) / std::log(C(2));
+	case UFunc::Log10:
+		return std::log(z) / std::log(C(10));
+	case UFunc::Sin:
+		return std::sin(z);
+	case UFunc::Cos:
+		return std::cos(z);
+	case UFunc::Tan:
+		return std::tan(z);
+	case UFunc::Asin:
+		return std::asin(z);
+	case UFunc::Acos:
+		return std::acos(z);
+	case UFunc::Atan:
+		return std::atan(z);
+	case UFunc::Sinh:
+		return std::sinh(z);
+	case UFunc::Cosh:
+		return std::cosh(z);
+	case UFunc::Tanh:
+		return std::tanh(z);
+	case UFunc::Floor:
+	case UFunc::Ceil:
+	case UFunc::Trunc:
+		throw nb::type_error(
+			"floor/ceil/trunc are not supported for complex dtypes");
+	}
+	return z;
+}
+
+DlxArray dlx_ufunc(const DlxArray &a, UFunc f) {
+	dracolix::DType dt = a.dtype();
+	dracolix::DType out_dt;
+	if (is_complex_dtype(dt)) {
+		if (!ufunc_complex_ok(f))
+			throw nb::type_error(
+				"floor/ceil/trunc are not supported for complex dtypes");
+		out_dt = dt;
+	} else if (dt == dracolix::DType::F32) {
+		out_dt = dracolix::DType::F32;
+	} else {
+		out_dt = dracolix::DType::F64;
+	}
+	DlxArray c = cast_dtype(a, out_dt);
+	return std::visit(
+		[f](const auto &arr) -> DlxArray {
+			using T = typename array_scalar<std::decay_t<decltype(arr)>>::type;
+			dracolix::Array<T> out(arr.shape());
+			for (size_t i = 0; i < arr.size(); ++i) {
+				if constexpr (dracolix::is_complex_v<T>)
+					out[i] = apply_complex_ufunc(f, arr[i]);
+				else
+					out[i] = apply_real_ufunc<T>(f, static_cast<T>(arr[i]));
+			}
+			return DlxArray(std::move(out));
+		},
+		c.v);
+}
+
+DlxArray dlx_square(const DlxArray &a) {
+	return std::visit(
+		[](const auto &arr) -> DlxArray {
+			using T = typename array_scalar<std::decay_t<decltype(arr)>>::type;
+			if constexpr (std::is_same_v<T, bool>) {
+				return DlxArray(arr.clone());
+			} else {
+				dracolix::Array<T> out(arr.shape());
+				for (size_t i = 0; i < arr.size(); ++i)
+					out[i] = static_cast<T>(arr[i] * arr[i]);
+				return DlxArray(std::move(out));
+			}
+		},
+		a.v);
+}
+
+enum class Pred { Finite, Nan, Inf };
+
+template <typename T> bool apply_pred(Pred p, T v) {
+	if constexpr (dracolix::is_complex_v<T>) {
+		double re = static_cast<double>(v.real());
+		double im = static_cast<double>(v.imag());
+		switch (p) {
+		case Pred::Finite:
+			return std::isfinite(re) && std::isfinite(im);
+		case Pred::Nan:
+			return std::isnan(re) || std::isnan(im);
+		case Pred::Inf:
+			return std::isinf(re) || std::isinf(im);
+		}
+		return false;
+	} else {
+		double d = static_cast<double>(v);
+		switch (p) {
+		case Pred::Finite:
+			return std::isfinite(d);
+		case Pred::Nan:
+			return std::isnan(d);
+		case Pred::Inf:
+			return std::isinf(d);
+		}
+		return false;
+	}
+}
+
+DlxArray dlx_predicate(const DlxArray &a, Pred p) {
+	return std::visit(
+		[p](const auto &arr) -> DlxArray {
+			using T = typename array_scalar<std::decay_t<decltype(arr)>>::type;
+			dracolix::Array<bool> out(arr.shape());
+			for (size_t i = 0; i < arr.size(); ++i)
+				out[i] = apply_pred<T>(p, static_cast<T>(arr[i]));
+			return DlxArray(std::move(out));
+		},
+		a.v);
+}
+
+// -------------------------------------------------------------------------
 // item / __index__
 // ---------------------------------------------------------------------------
 nb::object dlx_item(const DlxArray &a, nb::object index) {
@@ -3498,6 +3960,18 @@ NB_MODULE(_dracolix_nb, m) {
 				return dlx_prod_axis(a, axis);
 			},
 			nb::arg("axis"))
+		.def(
+			"std",
+			[](const DlxArray &a, nb::object axis, int64_t ddof) {
+				return dlx_std_dispatch(a, axis, ddof);
+			},
+			nb::arg("axis") = nb::none(), nb::arg("ddof") = 0)
+		.def(
+			"var",
+			[](const DlxArray &a, nb::object axis, int64_t ddof) {
+				return dlx_var_dispatch(a, axis, ddof);
+			},
+			nb::arg("axis") = nb::none(), nb::arg("ddof") = 0)
 		.def("argmin", [](const DlxArray &a) { return dlx_argmin(a); })
 		.def(
 			"argmin",
@@ -3548,7 +4022,23 @@ NB_MODULE(_dracolix_nb, m) {
 			 [](nb::object x, nb::object y) { return dlx_div(y, x); })
 		.def("__pow__", &dlx_pow)
 		.def("__rpow__", &dlx_rpow)
+		.def("__floordiv__", &dlx_floordiv)
+		.def("__rfloordiv__", &dlx_rfloordiv)
+		.def("__mod__", &dlx_mod)
+		.def("__rmod__", &dlx_rmod)
+		.def("__and__", &dlx_and)
+		.def("__rand__", &dlx_and)
+		.def("__or__", &dlx_or)
+		.def("__ror__", &dlx_or)
+		.def("__xor__", &dlx_xor)
+		.def("__rxor__", &dlx_xor)
+		.def("__lshift__", &dlx_lshift)
+		.def("__rlshift__", &dlx_rlshift)
+		.def("__rshift__", &dlx_rshift)
+		.def("__rrshift__", &dlx_rrshift)
+		.def("__pos__", &dlx_pos)
 		.def("__neg__", &dlx_neg)
+		.def("__invert__", &dlx_invert)
 		.def("__eq__", &dlx_eq)
 		.def("__ne__", &dlx_ne)
 		.def("__lt__", &dlx_lt)
@@ -3805,6 +4295,56 @@ NB_MODULE(_dracolix_nb, m) {
 	m.def("abs", &dlx_abs, nb::arg("a"));
 	m.def("absolute", &dlx_abs, nb::arg("a"));
 	m.def("angle", &dlx_angle, nb::arg("a"));
+
+	// ---- elementwise math ---------------------------------------------------
+	m.def("sqrt", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Sqrt); },
+		  nb::arg("a"));
+	m.def("exp", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Exp); },
+		  nb::arg("a"));
+	m.def("expm1", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Expm1); },
+		  nb::arg("a"));
+	m.def("log", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Log); },
+		  nb::arg("a"));
+	m.def("log1p", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Log1p); },
+		  nb::arg("a"));
+	m.def("log2", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Log2); },
+		  nb::arg("a"));
+	m.def("log10", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Log10); },
+		  nb::arg("a"));
+	m.def("sin", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Sin); },
+		  nb::arg("a"));
+	m.def("cos", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Cos); },
+		  nb::arg("a"));
+	m.def("tan", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Tan); },
+		  nb::arg("a"));
+	m.def("asin", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Asin); },
+		  nb::arg("a"));
+	m.def("acos", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Acos); },
+		  nb::arg("a"));
+	m.def("atan", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Atan); },
+		  nb::arg("a"));
+	m.def("sinh", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Sinh); },
+		  nb::arg("a"));
+	m.def("cosh", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Cosh); },
+		  nb::arg("a"));
+	m.def("tanh", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Tanh); },
+		  nb::arg("a"));
+	m.def("floor", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Floor); },
+		  nb::arg("a"));
+	m.def("ceil", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Ceil); },
+		  nb::arg("a"));
+	m.def("trunc", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Trunc); },
+		  nb::arg("a"));
+	m.def("square", &dlx_square, nb::arg("a"));
+	m.def("isfinite",
+		  [](const DlxArray &a) { return dlx_predicate(a, Pred::Finite); },
+		  nb::arg("a"));
+	m.def("isnan",
+		  [](const DlxArray &a) { return dlx_predicate(a, Pred::Nan); },
+		  nb::arg("a"));
+	m.def("isinf",
+		  [](const DlxArray &a) { return dlx_predicate(a, Pred::Inf); },
+		  nb::arg("a"));
 
 	// ---- decompositions ----------------------------------------------------
 	m.def("lu", &dlx_lu, nb::arg("A"));

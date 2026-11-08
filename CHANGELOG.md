@@ -6,6 +6,49 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-11-08
+
+### Added
+
+- Python: `Array.std(axis=None, ddof=0)` and `Array.var(axis=None, ddof=0)`.
+  Scalar forms return a Python `float`; axis forms return `f64` arrays.
+  Complex inputs use the squared modulus (real-valued variance) and bool
+  inputs use the 0/1 representation, matching NumPy.
+- Python: `//`, `%`, and their reflected forms with Python/NumPy sign
+  semantics. Integer division or modulo by zero raises `ZeroDivisionError`;
+  floats follow IEEE (`inf` / `nan`); complex dtypes raise `TypeError`.
+- Python: bitwise `&`, `|`, `^`, `~` for integer and bool arrays, plus `<<`
+  and `>>` for integer arrays. Shifts with a negative count or a count outside
+  the dtype width raise `ValueError`.
+- Python: unary `+` and `~` (`+bool` and `-bool` raise `TypeError`, matching
+  the existing bool arithmetic rules).
+- Python: module-level elementwise math functions `sqrt`, `exp`, `expm1`,
+  `log`, `log1p`, `log2`, `log10`, `sin`, `cos`, `tan`, `asin`, `acos`,
+  `atan`, `sinh`, `cosh`, `tanh`, `floor`, `ceil`, `trunc`, and `square`.
+  `f32` stays `f32`, complex dtypes are preserved, and all other dtypes are
+  converted to `f64` first. Out-of-domain real results yield `nan`/`inf`
+  without warnings; `floor`/`ceil`/`trunc` reject complex input.
+- Python: `isfinite`, `isnan`, and `isinf` return bool arrays. Complex values
+  use both components (finite only when both are finite; NaN/inf when either
+  component is).
+- Core: `Array::var(ddof)` / `Array::std(ddof)` (two-pass, complex modulus,
+  bool-aware) and `Array::var_axis(axis, ddof)` / `Array::std_axis(axis, ddof)`.
+
+### Fixed
+
+- Core: `std`/`var` axis reductions were mathematically wrong (they summed
+  raw elements); they are replaced by correct `std_axis`/`var_axis`.
+- Core: `std`/`var` now validate `ddof` (`0 <= ddof < n`) and reject
+  zero-length reduction axes with `ValueError` in Python.
+
+### Changed
+
+- Python: `Array.std` / `Array.var` use the NumPy argument order
+  (`axis` first, then `ddof`), so use `arr.std(ddof=1)` for the scalar form.
+- Python: `-bool` now raises `TypeError` instead of returning an `i32` array.
+- Python: `bindings/python/dracolix/dracolix.pyi` was removed;
+  `bindings/python/dracolix/__init__.pyi` remains the single canonical stub.
+
 ## [0.3.3] - 2026-11-08
 
 ### Added
@@ -132,7 +175,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - CI: Python jobs build/test on 3.12, 3.14, and 3.15, and the wheel test
   command now runs the full test suite.
 
-[Unreleased]: https://github.com/draconis-engineering/dracolix/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/draconis-engineering/dracolix/compare/v0.3.4...HEAD
+[0.3.4]: https://github.com/draconis-engineering/dracolix/releases/tag/v0.3.4
 [0.3.3]: https://github.com/draconis-engineering/dracolix/releases/tag/v0.3.3
 [0.3.2]: https://github.com/draconis-engineering/dracolix/releases/tag/v0.3.2
 [0.3.1]: https://github.com/draconis-engineering/dracolix/releases/tag/v0.3.1

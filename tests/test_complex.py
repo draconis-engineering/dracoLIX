@@ -442,3 +442,49 @@ def test_numpy_complex_interop():
 
     # Forcing a real dtype from a complex buffer keeps the real part.
     close_all(dlx.array(np.asarray(a), dtype=dlx.f64), [1.0, 3.0])
+
+
+# ---------------------------------------------------------------------------
+# 0.3.4: complex std/var and elementwise math
+# ---------------------------------------------------------------------------
+def test_complex_var_std():
+    z = dlx.array([1 + 1j, 3 - 1j])
+    assert z.var() == pytest.approx(2.0)
+    assert z.std() == pytest.approx(2.0**0.5)
+    assert z.var(0).tolist() == pytest.approx([2.0])
+    assert z.std(ddof=1) == pytest.approx(2.0)
+
+
+def test_complex_ufuncs():
+    close_all(dlx.sqrt(dlx.array([-1 + 0j])), [1j])
+    close_all(dlx.sqrt(dlx.array([3 + 4j])), [cmath.sqrt(3 + 4j)])
+    close_all(dlx.exp(dlx.array([1j])), [cmath.exp(1j)])
+    close_all(dlx.log(dlx.array([-1 + 0j])), [cmath.log(-1 + 0j)])
+    close_all(dlx.log1p(dlx.array([1j])), [cmath.log(1 + 1j)])
+    close_all(dlx.log2(dlx.array([8 + 0j])), [3 + 0j])
+    close_all(dlx.log10(dlx.array([1000 + 0j])), [3 + 0j])
+    close_all(dlx.sin(dlx.array([1 + 1j])), [cmath.sin(1 + 1j)])
+    close_all(dlx.cos(dlx.array([1 + 1j])), [cmath.cos(1 + 1j)])
+    close_all(dlx.tanh(dlx.array([1 + 1j])), [cmath.tanh(1 + 1j)])
+
+    assert dlx.sqrt(dlx.array([1j], dtype=dlx.c64)).dtype is dlx.c64
+    assert dlx.sqrt(dlx.array([1j], dtype=dlx.c128)).dtype is dlx.c128
+
+    with pytest.raises(TypeError):
+        dlx.floor(dlx.array([1 + 0j]))
+    with pytest.raises(TypeError):
+        dlx.ceil(dlx.array([1 + 0j]))
+    with pytest.raises(TypeError):
+        dlx.trunc(dlx.array([1 + 0j]))
+
+
+def test_complex_square_and_predicates():
+    sq = dlx.square(dlx.array([1 + 2j], dtype=dlx.c64))
+    assert sq.dtype is dlx.c64
+    close_all(sq, [(1 + 2j) ** 2])
+
+    z = dlx.array([complex(float("nan"), 0.0), 1 + 2j])
+    assert dlx.isnan(z).tolist() == [True, False]
+    z2 = dlx.array([complex(0.0, float("inf")), 1 + 2j])
+    assert dlx.isinf(z2).tolist() == [True, False]
+    assert dlx.isfinite(z2).tolist() == [False, True]

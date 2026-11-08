@@ -126,6 +126,8 @@ Currently available from Python:
 - Arrays: `array`, `asarray`, `zeros`, `ones`, `empty`, `full`, `arange`,
   `linspace`
 - Linear algebra: `matmul`, `matvec`, `dot`, `norm`, `diagonal`, `diag`
+- Elementwise math: `sqrt`, `square`, `exp`, `log`, `sin`/`cos`/`tan`,
+  `floor`/`ceil`/`trunc`, `isfinite`/`isnan`/`isinf`
 - Decompositions / solvers: `lu`, `solve`, `inv`, `det`, `rank`, `qr`,
   `cholesky`, `eig`, `svd`
 - Sparse: `CsrMatrix`, `CscMatrix`, `cg_solve`, and `matrix.solve(b)`

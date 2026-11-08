@@ -4,6 +4,7 @@ The core must work with zero NumPy in the runtime; numpy is only used as an
 *optional* cross-check of the PEP 3118 buffer protocol interop.
 """
 
+import math
 import struct
 
 import dracolix as dlx
@@ -671,3 +672,235 @@ def test_sequence_operands():
 
     m = dlx.array([[1, 2], [3, 4]])
     assert (m < [2, 3]).tolist() == [[True, True], [False, False]]
+
+
+# ---------------------------------------------------------------------------
+# 0.3.4: std / var
+# ---------------------------------------------------------------------------
+def test_std_var_global():
+    a = dlx.array([1.0, 2.0, 3.0, 4.0])
+    assert a.var() == pytest.approx(1.25)
+    assert a.std() == pytest.approx(math.sqrt(1.25))
+    assert a.var(ddof=1) == pytest.approx(5.0 / 3.0)
+    assert a.std(ddof=1) == pytest.approx(math.sqrt(5.0 / 3.0))
+
+    i = dlx.array([2, 4, 6], dtype=dlx.i32)
+    assert i.var() == pytest.approx(8.0 / 3.0)
+
+    b = dlx.array([True, True, False])
+    assert b.var() == pytest.approx(2.0 / 9.0)
+    assert b.std() == pytest.approx(math.sqrt(2.0 / 9.0))
+
+    with pytest.raises(ValueError):
+        a.var(ddof=-1)
+    with pytest.raises(ValueError):
+        a.std(ddof=4)
+
+
+def test_std_var_axis():
+    a = dlx.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+    s = a.std(0)
+    assert s.dtype is dlx.f64
+    assert s.tolist() == pytest.approx([1.5, 1.5, 1.5])
+    v = a.var(1)
+    assert v.dtype is dlx.f64
+    assert v.tolist() == pytest.approx([2.0 / 3.0] * 2)
+    assert a.var(-1).tolist() == pytest.approx(v.tolist())
+    assert a.var(0, ddof=1).tolist() == pytest.approx([4.5, 4.5, 4.5])
+    assert a.std(0, 1).tolist() == pytest.approx([math.sqrt(4.5)] * 3)
+
+    b = dlx.array([[True, False], [True, True]])
+    assert b.var(0).tolist() == pytest.approx([0.0, 0.25])
+    assert b.std(1).tolist() == pytest.approx([0.5, 0.0])
+
+    with pytest.raises(IndexError):
+        a.std(2)
+    with pytest.raises(ValueError):
+        a.var(0, ddof=2)
+
+
+# ---------------------------------------------------------------------------
+# 0.3.4: arithmetic operators
+# ---------------------------------------------------------------------------
+def test_floordiv_mod_integers():
+    a = dlx.array([-7, -8, 7, 8], dtype=dlx.i64)
+    assert (a // 3).tolist() == [-3, -3, 2, 2]
+    assert (a % 3).tolist() == [2, 1, 1, 2]
+    assert (a // -3).tolist() == [2, 2, -3, -3]
+    assert (a % -3).tolist() == [-1, -2, -2, -1]
+    assert (7 // a).tolist() == [-1, -1, 1, 0]
+    assert (7 % a).tolist() == [0, -1, 0, 7]
+    assert (a // 3).dtype is dlx.i64
+
+    u = dlx.array([3, 7], dtype=dlx.u8)
+    assert (u // 2).tolist() == [1, 3]
+    assert (u % 2).tolist() == [1, 1]
+
+    with pytest.raises(ZeroDivisionError):
+        a // 0
+    with pytest.raises(ZeroDivisionError):
+        a % 0
+
+
+def test_floordiv_mod_floats():
+    a = dlx.array([1.5, -1.5, 7.0])
+    assert (a // 2).tolist() == [0.0, -1.0, 3.0]
+    assert (a % 2).tolist() == pytest.approx([1.5, 0.5, 1.0])
+    assert (2.0 // a).tolist()[0] == 1.0
+
+    q = a // 0
+    assert math.isinf(q[0]) and q[0] > 0
+    assert math.isinf(q[1]) and q[1] < 0
+    r = a % 0
+    assert all(math.isnan(x) for x in r.tolist())
+
+
+def test_arithmetic_rejects_bool_and_complex():
+    b = dlx.array([True, False])
+    for op in (
+        lambda: b + b,
+        lambda: b - b,
+        lambda: b * b,
+        lambda: b / b,
+        lambda: b // b,
+        lambda: b % b,
+        lambda: b**b,
+    ):
+        with pytest.raises(TypeError):
+            op()
+
+    z = dlx.array([1 + 2j])
+    with pytest.raises(TypeError):
+        z // 2
+    with pytest.raises(TypeError):
+        z % 2
+
+
+def test_bitwise():
+    a = dlx.array([1, 2, 3, 7], dtype=dlx.i64)
+    assert (a & 1).tolist() == [1, 0, 1, 1]
+    assert (a | 8).tolist() == [9, 10, 11, 15]
+    assert (a ^ 3).tolist() == [2, 1, 0, 4]
+    assert (1 & a).tolist() == [1, 0, 1, 1]
+    assert (a & True).tolist() == [1, 0, 1, 1]
+
+    u = dlx.array([1], dtype=dlx.u8) | dlx.array([2], dtype=dlx.u16)
+    assert u.dtype is dlx.u16
+    assert u.tolist() == [3]
+
+    bt = dlx.array([True, False]) & dlx.array([True, True])
+    assert bt.dtype is dlx.bool_
+    assert bt.tolist() == [True, False]
+    assert (dlx.array([True, False]) | dlx.array([False, False])).tolist() == [
+        True,
+        False,
+    ]
+    assert (dlx.array([True, True]) ^ dlx.array([True, False])).tolist() == [
+        False,
+        True,
+    ]
+
+    with pytest.raises(TypeError):
+        dlx.array([1.0]) & 1
+    with pytest.raises(TypeError):
+        dlx.array([1 + 0j]) | 1
+
+
+def test_invert_and_shifts():
+    assert (~dlx.array([True, False])).tolist() == [False, True]
+    assert (~dlx.array([0, 1, -1], dtype=dlx.i32)).tolist() == [-1, -2, 0]
+    assert (~dlx.array([0, 255], dtype=dlx.u8)).tolist() == [255, 0]
+
+    a = dlx.array([1, 2, 3], dtype=dlx.i64)
+    assert (a << 2).tolist() == [4, 8, 12]
+    assert (a >> 1).tolist() == [0, 1, 1]
+    assert (1 << a).tolist() == [2, 4, 8]
+    assert (8 >> a).tolist() == [4, 2, 1]
+    assert (dlx.array([-8]) >> 2).tolist() == [-2]
+
+    with pytest.raises(ValueError):
+        a << -1
+    with pytest.raises(ValueError):
+        a << 64
+    with pytest.raises(TypeError):
+        dlx.array([True]) << 1
+    with pytest.raises(TypeError):
+        dlx.array([1.0]) << 1
+
+
+def test_unary_pos_neg():
+    a = dlx.array([1, -2, 3], dtype=dlx.i32)
+    p = +a
+    assert p.tolist() == [1, -2, 3]
+    assert p.dtype is dlx.i32
+    assert (-a).tolist() == [-1, 2, -3]
+    assert (-dlx.array([1, 2], dtype=dlx.u8)).tolist() == [255, 254]
+    assert (-dlx.array([1 + 2j])).tolist() == [-1 - 2j]
+
+    with pytest.raises(TypeError):
+        -dlx.array([True])
+    with pytest.raises(TypeError):
+        +dlx.array([True])
+
+
+# ---------------------------------------------------------------------------
+# 0.3.4: elementwise math ufuncs
+# ---------------------------------------------------------------------------
+def test_ufunc_dtypes():
+    x = dlx.array([4, 9], dtype=dlx.i32)
+    r = dlx.sqrt(x)
+    assert r.dtype is dlx.f64
+    assert r.tolist() == [2.0, 3.0]
+
+    assert dlx.sqrt(dlx.array([4.0], dtype=dlx.f32)).dtype is dlx.f32
+    assert dlx.exp(dlx.array([0.0], dtype=dlx.f32)).dtype is dlx.f32
+    assert dlx.exp(dlx.array([True, False])).dtype is dlx.f64
+    assert dlx.square(dlx.array([1, 2], dtype=dlx.i32)).dtype is dlx.i32
+    assert dlx.square(dlx.array([True, False])).dtype is dlx.bool_
+
+
+def test_ufunc_values():
+    a = dlx.array([0.0, 1.0, 2.0])
+    assert dlx.exp(a).tolist() == pytest.approx([1.0, math.e, math.e**2])
+    assert dlx.expm1(a).tolist() == pytest.approx([0.0, math.e - 1, math.e**2 - 1])
+    assert dlx.log(dlx.array([1.0, math.e])).tolist() == pytest.approx([0.0, 1.0])
+    assert dlx.log1p(a).tolist() == pytest.approx([0.0, math.log(2), math.log(3)])
+    assert dlx.log2(dlx.array([1.0, 8.0])).tolist() == pytest.approx([0.0, 3.0])
+    assert dlx.log10(dlx.array([1.0, 1000.0])).tolist() == pytest.approx([0.0, 3.0])
+    assert dlx.sin(a).tolist() == pytest.approx([math.sin(v) for v in (0, 1, 2)])
+    assert dlx.cos(a).tolist() == pytest.approx([math.cos(v) for v in (0, 1, 2)])
+    assert dlx.tan(a).tolist() == pytest.approx([math.tan(v) for v in (0, 1, 2)])
+    assert dlx.sinh(a).tolist() == pytest.approx([math.sinh(v) for v in (0, 1, 2)])
+    assert dlx.cosh(a).tolist() == pytest.approx([math.cosh(v) for v in (0, 1, 2)])
+    assert dlx.tanh(a).tolist() == pytest.approx([math.tanh(v) for v in (0, 1, 2)])
+    assert dlx.floor(dlx.array([1.7, -1.2])).tolist() == [1.0, -2.0]
+    assert dlx.ceil(dlx.array([1.2, -1.7])).tolist() == [2.0, -1.0]
+    assert dlx.trunc(dlx.array([1.7, -1.7])).tolist() == [1.0, -1.0]
+
+    asin_in = dlx.array([0.5])
+    assert dlx.asin(asin_in).tolist() == pytest.approx([math.asin(0.5)])
+    assert dlx.acos(asin_in).tolist() == pytest.approx([math.acos(0.5)])
+    assert dlx.atan(asin_in).tolist() == pytest.approx([math.atan(0.5)])
+
+
+def test_ufunc_ieee_and_errors():
+    r = dlx.sqrt(dlx.array([-1.0]))
+    assert math.isnan(r[0])
+    assert dlx.log(dlx.array([0.0]))[0] == -math.inf
+    assert math.isinf(dlx.exp(dlx.array([1000.0]))[0])
+    assert dlx.square(dlx.array([1.5, -2.0])).tolist() == [2.25, 4.0]
+
+    with pytest.raises(TypeError):
+        dlx.floor(dlx.array([1 + 0j]))
+    with pytest.raises(TypeError):
+        dlx.sqrt([4.0])
+
+
+def test_predicates():
+    a = dlx.array([1.0, math.nan, math.inf, -math.inf])
+    fin = dlx.isfinite(a)
+    assert fin.dtype is dlx.bool_
+    assert fin.tolist() == [True, False, False, False]
+    assert dlx.isnan(a).tolist() == [False, True, False, False]
+    assert dlx.isinf(a).tolist() == [False, False, True, True]
+    assert dlx.isfinite(dlx.array([1, 2], dtype=dlx.i32)).tolist() == [True, True]

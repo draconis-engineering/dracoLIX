@@ -1,7 +1,9 @@
 #include "../../core/include/dracolix/array.hpp"
 #include <cassert>
 #include <cmath>
+#include <complex>
 #include <iostream>
+#include <stdexcept>
 
 using namespace dracolix;
 
@@ -141,6 +143,82 @@ void test_phase033_reductions() {
 	std::cout << " 0.3.3 reductions OK\n";
 }
 
+void test_phase034_stats() {
+	Array<double> a({2, 3});
+	for (size_t i = 0; i < 6; ++i)
+		a[i] = (double)(i + 1); // [[1 2 3],[4 5 6]]
+
+	assert(std::abs(a.var() - 35.0 / 12.0) < 1e-12);
+	assert(std::abs(a.var(1) - 3.5) < 1e-12);
+	assert(std::abs(a.std() - std::sqrt(35.0 / 12.0)) < 1e-12);
+	assert(std::abs(a.std(1) - std::sqrt(3.5)) < 1e-12);
+
+	auto v0 = a.var_axis(0); // [2.25 2.25 2.25]
+	assert(v0.dtype() == DType::F64);
+	for (size_t i = 0; i < 3; ++i)
+		assert(std::abs(v0[i] - 2.25) < 1e-12);
+	auto s1 = a.std_axis(1); // sqrt(2/3) twice
+	for (size_t i = 0; i < 2; ++i)
+		assert(std::abs(s1[i] - std::sqrt(2.0 / 3.0)) < 1e-12);
+	auto vd = a.var_axis(1, 1); // ddof=1 -> 1.0
+	assert(std::abs(vd[0] - 1.0) < 1e-12);
+
+	Array<int32_t> i({3});
+	i[0] = 2;
+	i[1] = 4;
+	i[2] = 6;
+	assert(std::abs(i.var() - 8.0 / 3.0) < 1e-12);
+
+	Array<bool> b({3});
+	b[0] = true;
+	b[1] = true;
+	b[2] = false;
+	assert(std::abs(b.var() - 2.0 / 9.0) < 1e-12);
+	auto bv = b.var_axis(0);
+	assert(std::abs(bv[0] - 2.0 / 9.0) < 1e-12);
+
+	Array<std::complex<double>> z({2});
+	z[0] = {1.0, 1.0};
+	z[1] = {3.0, -1.0};
+	assert(std::abs(z.var() - 2.0) < 1e-12);
+	assert(std::abs(z.std() - std::sqrt(2.0)) < 1e-12);
+	auto zv = z.var_axis(0);
+	assert(std::abs(zv[0] - 2.0) < 1e-12);
+
+	bool threw = false;
+	try {
+		a.var(6);
+	} catch (const std::invalid_argument &) {
+		threw = true;
+	}
+	assert(threw);
+	threw = false;
+	try {
+		a.std(-1);
+	} catch (const std::invalid_argument &) {
+		threw = true;
+	}
+	assert(threw);
+	threw = false;
+	try {
+		a.var_axis(0, 2);
+	} catch (const std::invalid_argument &) {
+		threw = true;
+	}
+	assert(threw);
+
+	Array<double> e({0});
+	threw = false;
+	try {
+		e.var();
+	} catch (const std::logic_error &) {
+		threw = true;
+	}
+	assert(threw);
+	assert(e.size() == 0);
+	std::cout << " 0.3.4 stats OK\n";
+}
+
 void test_astype() {
 	Array<double> a({3});
 	a[0] = 1.7;
@@ -202,6 +280,7 @@ int main() {
 	test_slice();
 	test_reductions();
 	test_phase033_reductions();
+	test_phase034_stats();
 	test_astype();
 	test_broadcast();
 	// existing smoke
