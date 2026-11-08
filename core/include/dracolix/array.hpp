@@ -11,8 +11,8 @@
 #include "thread_pool.hpp"
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <future>
 #include <random>
@@ -469,26 +469,27 @@ template <typename T> class Array {
 	// ================================================================
 
 	// Returns the product of all elements in the array
+	// The empty product is the multiplicative identity (1), matching NumPy.
 	T prod() const {
 		if (size_ == 0)
-			throw std::logic_error("prod of empty array");
+			return T{1};
 		if (size_ < 100000) {
-			T acc = T{};
-			for (auto v : data_)
-				acc *= v;
+			T acc = static_cast<T>(data_[0]);
+			for (size_t i = 1; i < size_; ++i)
+				acc *= static_cast<T>(data_[i]);
 			return acc;
 		}
 		// parallel product: split into chunks
 		size_t nthreads = ThreadPool::global().size();
 		size_t chunk = (size_ + nthreads - 1) / nthreads;
-		std::vector<T> partials(nthreads, T{});
+		std::vector<T> partials(nthreads, T{1});
 		std::vector<std::future<void>> futs;
 		for (size_t t = 0; t < nthreads; ++t) {
 			size_t s = t * chunk, e = std::min(size_, s + chunk);
 			if (s >= e)
 				break;
 			futs.push_back(ThreadPool::global().enqueue([&, t, s, e] {
-				T acc = T{};
+				T acc = T{1};
 				for (size_t i = s; i < e; ++i)
 					acc *= static_cast<T>(data_[i]);
 				partials[t] = acc;
@@ -496,7 +497,7 @@ template <typename T> class Array {
 		}
 		for (auto &f : futs)
 			f.get();
-		T acc = T{};
+		T acc = T{1};
 		for (auto v : partials)
 			acc *= v;
 		return acc;
@@ -524,32 +525,52 @@ template <typename T> class Array {
 
 	// Returns the index of the minimum element in the array
 	size_t argmin() const {
-		if (size_ == 0)
-			throw std::logic_error("argmin of empty array");
 		if constexpr (is_complex_v<T>) {
 			throw std::domain_error(
 				"argmin is undefined for complex arrays (no ordering)");
+		} else {
+			if (size_ == 0)
+				throw std::logic_error("argmin of empty array");
+			size_t min_idx = 0;
+			for (size_t i = 1; i < size_; ++i)
+				if (static_cast<T>(data_[i]) <
+					static_cast<T>(data_[min_idx]))
+					min_idx = i;
+			return min_idx;
 		}
-		size_t min_idx = 0;
-		for (size_t i = 1; i < size_; ++i)
-			if (data_[i] < data_[min_idx])
-				min_idx = i;
-		return min_idx;
 	}
 
 	// Returns the index of the maximum element in the array
 	size_t argmax() const {
-		if (size_ == 0)
-			throw std::logic_error("argmax of empty array");
 		if constexpr (is_complex_v<T>) {
 			throw std::domain_error(
 				"argmax is undefined for complex arrays (no ordering)");
+		} else {
+			if (size_ == 0)
+				throw std::logic_error("argmax of empty array");
+			size_t max_idx = 0;
+			for (size_t i = 1; i < size_; ++i)
+				if (static_cast<T>(data_[i]) >
+					static_cast<T>(data_[max_idx]))
+					max_idx = i;
+			return max_idx;
 		}
-		size_t max_idx = 0;
-		for (size_t i = 1; i < size_; ++i)
-			if (data_[i] > data_[max_idx])
-				max_idx = i;
-		return max_idx;
+	}
+
+	// Returns true when any element is non-zero (logical OR).
+	bool any() const {
+		for (size_t i = 0; i < size_; ++i)
+			if (truthy(data_[i]))
+				return true;
+		return false;
+	}
+
+	// Returns true when every element is non-zero (logical AND).
+	bool all() const {
+		for (size_t i = 0; i < size_; ++i)
+			if (!truthy(data_[i]))
+				return false;
+		return true;
 	}
 
 	// ================================================================
@@ -557,9 +578,10 @@ template <typename T> class Array {
 	// ================================================================
 
 	// Returns the product of the array along the given axis
+	// A zero-length reduced axis yields ones (multiplicative identity).
 	Array prod(size_t axis) const {
 		return reduce_axis(
-			axis, [](T a, T b) { return static_cast<T>(a * b); }, T{});
+			axis, [](T a, T b) { return static_cast<T>(a * b); }, T{1});
 	}
 
 	// Returns the standard deviation along the given axis
@@ -601,26 +623,22 @@ template <typename T> class Array {
 	}
 
 	// Returns the index of the minimum element along the given axis
-	Array argmin(size_t axis) const {
+	Array<int64_t> argmin(size_t axis) const {
 		if constexpr (is_complex_v<T>) {
 			throw std::domain_error(
 				"argmin(axis) is undefined for complex arrays (no ordering)");
 		} else {
-			if (size_ == 0)
-				throw std::logic_error("argmin(axis) empty");
-			return reduce_axis_minmax(axis, true);
+			return arg_reduce_axis(axis, true);
 		}
 	}
 
 	// Returns the index of the maximum element along the given axis
-	Array argmax(size_t axis) const {
+	Array<int64_t> argmax(size_t axis) const {
 		if constexpr (is_complex_v<T>) {
 			throw std::domain_error(
 				"argmax(axis) is undefined for complex arrays (no ordering)");
 		} else {
-			if (size_ == 0)
-				throw std::logic_error("argmax(axis) empty");
-			return reduce_axis_minmax(axis, false);
+			return arg_reduce_axis(axis, false);
 		}
 	}
 
@@ -656,6 +674,16 @@ template <typename T> class Array {
 				throw std::logic_error("max_axis empty");
 			return reduce_axis_minmax(axis, false);
 		}
+	}
+
+	// Returns a bool array: true where any element along the axis is truthy.
+	Array<bool> any_axis(size_t axis) const {
+		return reduce_axis_bool(axis, false);
+	}
+
+	// Returns a bool array: true where every element along the axis is truthy.
+	Array<bool> all_axis(size_t axis) const {
+		return reduce_axis_bool(axis, true);
 	}
 
 	// Returns the mean value along the given axis
@@ -825,6 +853,93 @@ template <typename T> class Array {
 		for (size_t i = 0; i < size_; ++i)
 			res.data_[i] = fn(data_[i], s);
 		return res;
+	}
+
+	// Truthiness under NumPy semantics: non-zero (NaN counts as non-zero).
+	static bool truthy(const inner_t &v) {
+		return static_cast<T>(v) != T{};
+	}
+
+	// Index (i64) of the min/max along an axis. Ties keep the first index.
+	Array<int64_t> arg_reduce_axis(size_t axis, bool is_min) const {
+		if (axis >= ndim_)
+			throw std::out_of_range("reduce axis OOB");
+		if (size_ == 0)
+			throw std::logic_error("argmin/argmax of empty array");
+		if (shape_[axis] == 0)
+			throw std::logic_error("argmin/argmax of empty axis");
+		std::vector<size_t> out_shape;
+		for (size_t d = 0; d < ndim_; ++d)
+			if (d != axis)
+				out_shape.push_back(shape_[d]);
+		if (out_shape.empty())
+			out_shape = {1};
+		Array<int64_t> out(out_shape);
+		Array<T> best(out_shape);
+		for (size_t flat = 0; flat < size_; ++flat) {
+			size_t rem = flat;
+			std::vector<size_t> idx(ndim_);
+			for (int d = (int)ndim_ - 1; d >= 0; --d) {
+				idx[d] = rem % shape_[d];
+				rem /= shape_[d];
+			}
+			size_t out_flat = 0;
+			for (int d = (int)ndim_ - 1, out_d = (int)out.ndim() - 1; d >= 0;
+				 --d) {
+				if ((size_t)d == axis)
+					continue;
+				out_flat += idx[d] * out.strides()[out_d];
+				--out_d;
+			}
+			T v = static_cast<T>(data_[flat]);
+			if (idx[axis] == 0) {
+				best.data()[out_flat] = v;
+				out.data()[out_flat] = 0;
+			} else if (is_min ? v < best.data()[out_flat]
+							  : v > best.data()[out_flat]) {
+				best.data()[out_flat] = v;
+				out.data()[out_flat] = static_cast<int64_t>(idx[axis]);
+			}
+		}
+		return out;
+	}
+
+	// Logical any/all along an axis (returns bool, axis removed).
+	Array<bool> reduce_axis_bool(size_t axis, bool is_all) const {
+		if (axis >= ndim_)
+			throw std::out_of_range("reduce axis OOB");
+		std::vector<size_t> out_shape;
+		for (size_t d = 0; d < ndim_; ++d)
+			if (d != axis)
+				out_shape.push_back(shape_[d]);
+		if (out_shape.empty())
+			out_shape = {1};
+		Array<bool> out(out_shape);
+		std::fill(out.data(), out.data() + out.size(), is_all);
+		for (size_t flat = 0; flat < size_; ++flat) {
+			size_t rem = flat;
+			std::vector<size_t> idx(ndim_);
+			for (int d = (int)ndim_ - 1; d >= 0; --d) {
+				idx[d] = rem % shape_[d];
+				rem /= shape_[d];
+			}
+			size_t out_flat = 0;
+			for (int d = (int)ndim_ - 1, out_d = (int)out.ndim() - 1; d >= 0;
+				 --d) {
+				if ((size_t)d == axis)
+					continue;
+				out_flat += idx[d] * out.strides()[out_d];
+				--out_d;
+			}
+			bool t = truthy(data_[flat]);
+			if (is_all)
+				out.data()[out_flat] =
+					static_cast<bool>(out.data()[out_flat]) && t;
+			else
+				out.data()[out_flat] =
+					static_cast<bool>(out.data()[out_flat]) || t;
+		}
+		return out;
 	}
 
 	// Reduce operation along a given axis using a binary function and

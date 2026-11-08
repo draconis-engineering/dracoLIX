@@ -101,6 +101,46 @@ void test_reductions() {
 	std::cout << " reductions OK\n";
 }
 
+void test_phase033_reductions() {
+	Array<double> a({2, 3});
+	for (size_t i = 0; i < 6; ++i)
+		a[i] = (double)(i + 1); // [[1 2 3],[4 5 6]]
+	assert(a.prod() == 720.0);
+	auto p0 = a.prod(0); // [4, 10, 18]
+	assert(p0[0] == 4 && p0[1] == 10 && p0[2] == 18);
+	auto p1 = a.prod(1); // [6, 120]
+	assert(p1[0] == 6 && p1[1] == 120);
+
+	assert(a.argmin() == 0);
+	assert(a.argmax() == 5);
+	auto amin0 = a.argmin(0); // [0, 0, 0]
+	assert(amin0.dtype() == DType::I64);
+	assert(amin0[0] == 0 && amin0[2] == 0);
+	auto amax0 = a.argmax(0); // [1, 1, 1]
+	assert(amax0[0] == 1 && amax0[2] == 1);
+	auto amin1 = a.argmin(1); // [0, 0]
+	assert(amin1[0] == 0 && amin1[1] == 0);
+	auto amax1 = a.argmax(1); // [2, 2]
+	assert(amax1[0] == 2 && amax1[1] == 2);
+
+	assert(a.any());
+	assert(a.all());
+	Array<double> z({3});
+	z[0] = 0;
+	z[1] = 0;
+	z[2] = 1;
+	assert(z.any());
+	assert(!z.all());
+	assert(z.any_axis(0)[0]);
+	assert(!z.all_axis(0)[0]);
+
+	Array<double> e({0});
+	assert(e.prod() == 1.0);
+	assert(!e.any());
+	assert(e.all());
+	std::cout << " 0.3.3 reductions OK\n";
+}
+
 void test_astype() {
 	Array<double> a({3});
 	a[0] = 1.7;
@@ -161,6 +201,7 @@ int main() {
 	test_permute();
 	test_slice();
 	test_reductions();
+	test_phase033_reductions();
 	test_astype();
 	test_broadcast();
 	// existing smoke

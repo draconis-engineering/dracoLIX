@@ -330,7 +330,7 @@ DlxArray scalar_slot(nb::handle h) {
 }
 
 // ---------------------------------------------------------------------------
-// dtype promotion (rules documented in dracolix.pyi)
+// dtype promotion (rules documented in __init__.pyi)
 // ---------------------------------------------------------------------------
 bool is_complex_dtype(dracolix::DType d) {
 	return d == dracolix::DType::C64 || d == dracolix::DType::C128;
@@ -750,6 +750,8 @@ DlxArray bin_switch(dracolix::DType r, const DlxArray &A, const DlxArray &B,
 	}
 }
 
+DlxArray dlx_array(nb::object data, nb::object dtype);
+
 bool coerce_operand(nb::handle h, std::optional<DlxArray> &out) {
 	if (is_array(h)) {
 		out = *nb::cast<DlxArray *>(h);
@@ -757,6 +759,13 @@ bool coerce_operand(nb::handle h, std::optional<DlxArray> &out) {
 	}
 	if (is_number(h)) {
 		out = scalar_slot(h);
+		return true;
+	}
+	// Sequences (list/tuple) and buffers are coerced through array(), so
+	// ``arr < [1, 2, 3]`` and ``arr + [1, 2, 3]`` behave like NumPy.
+	if (PyList_Check(h.ptr()) || PyTuple_Check(h.ptr()) ||
+		PyObject_CheckBuffer(h.ptr())) {
+		out = dlx_array(nb::borrow<nb::object>(h), nb::none());
 		return true;
 	}
 	return false;
@@ -2083,13 +2092,14 @@ nb::object dlx_min(const DlxArray &a) {
 		[](const auto &arr) -> nb::object {
 			using T = typename array_scalar<std::decay_t<decltype(arr)>>::type;
 			if constexpr (std::is_same_v<T, bool>) {
-				bool any = false;
+				// Logical AND: min([True, False]) is False.
+				bool all = true;
 				for (size_t i = 0; i < arr.size(); ++i)
-					if (arr[i]) {
-						any = true;
+					if (!arr[i]) {
+						all = false;
 						break;
 					}
-				return nb::cast(any);
+				return nb::cast(all);
 			} else if constexpr (dracolix::is_complex_v<T>) {
 				throw nb::type_error(
 					"min() is undefined for complex arrays (no ordering)");
@@ -2155,7 +2165,7 @@ DlxArray dlx_sum_axis(const DlxArray &a, int64_t axis) {
 		[&](const auto &arr) -> DlxArray {
 			using T = typename array_scalar<std::decay_t<decltype(arr)>>::type;
 			if constexpr (std::is_same_v<T, bool>) {
-				// logical OR along axis (documented in dracolix.pyi)
+				// logical OR along axis (documented in __init__.pyi)
 				dracolix::Array<bool> r = arr.sum((size_t)axis);
 				return DlxArray(std::move(r));
 			} else {
@@ -2198,6 +2208,137 @@ DlxArray dlx_mean_axis(const DlxArray &a, int64_t axis) {
 	return std::visit(
 		[&](const auto &arr) -> DlxArray {
 			return DlxArray(arr.mean_axis((size_t)axis));
+		},
+		a.v);
+}
+
+nb::object dlx_prod(const DlxArray &a) {
+	return std::visit(
+		[](const auto &arr) -> nb::object {
+			using T = typename array_scalar<std::decay_t<decltype(arr)>>::type;
+			if constexpr (std::is_same_v<T, bool>) {
+				// Logical AND, returned as i64 0/1 (NumPy parity).
+				bool p = true;
+				for (size_t i = 0; i < arr.size(); ++i)
+					if (!arr[i]) {
+						p = false;
+						break;
+					}
+				return nb::cast((int64_t)(p ? 1 : 0));
+			} else {
+				return scalar_to_py<T>(arr.prod());
+			}
+		},
+		a.v);
+}
+
+DlxArray dlx_prod_axis(const DlxArray &a, int64_t axis) {
+	axis = normalize_axis(a, axis);
+	return std::visit(
+		[&](const auto &arr) -> DlxArray {
+			using T = typename array_scalar<std::decay_t<decltype(arr)>>::type;
+			if constexpr (std::is_same_v<T, bool>) {
+				auto r = arr.prod((size_t)axis);
+				return DlxArray(r.template astype<int64_t>());
+			} else {
+				return DlxArray(arr.prod((size_t)axis));
+			}
+		},
+		a.v);
+}
+
+nb::object dlx_argmin(const DlxArray &a) {
+	return std::visit(
+		[](const auto &arr) -> nb::object {
+			using T = typename array_scalar<std::decay_t<decltype(arr)>>::type;
+			if constexpr (dracolix::is_complex_v<T>) {
+				throw nb::type_error(
+					"argmin is undefined for complex arrays (no ordering)");
+			} else {
+				if (arr.size() == 0)
+					throw nb::value_error("argmin of empty array");
+				return nb::cast((int64_t)arr.argmin());
+			}
+		},
+		a.v);
+}
+
+nb::object dlx_argmax(const DlxArray &a) {
+	return std::visit(
+		[](const auto &arr) -> nb::object {
+			using T = typename array_scalar<std::decay_t<decltype(arr)>>::type;
+			if constexpr (dracolix::is_complex_v<T>) {
+				throw nb::type_error(
+					"argmax is undefined for complex arrays (no ordering)");
+			} else {
+				if (arr.size() == 0)
+					throw nb::value_error("argmax of empty array");
+				return nb::cast((int64_t)arr.argmax());
+			}
+		},
+		a.v);
+}
+
+DlxArray dlx_argmin_axis(const DlxArray &a, int64_t axis) {
+	axis = normalize_axis(a, axis);
+	return std::visit(
+		[&](const auto &arr) -> DlxArray {
+			using T = typename array_scalar<std::decay_t<decltype(arr)>>::type;
+			if constexpr (dracolix::is_complex_v<T>) {
+				throw nb::type_error("argmin(axis) is undefined for complex "
+									 "arrays (no ordering)");
+			} else {
+				if (arr.size() == 0 || arr.shape()[(size_t)axis] == 0)
+					throw nb::value_error(
+						"argmin(axis) of an empty sequence");
+				return DlxArray(arr.argmin((size_t)axis));
+			}
+		},
+		a.v);
+}
+
+DlxArray dlx_argmax_axis(const DlxArray &a, int64_t axis) {
+	axis = normalize_axis(a, axis);
+	return std::visit(
+		[&](const auto &arr) -> DlxArray {
+			using T = typename array_scalar<std::decay_t<decltype(arr)>>::type;
+			if constexpr (dracolix::is_complex_v<T>) {
+				throw nb::type_error("argmax(axis) is undefined for complex "
+									 "arrays (no ordering)");
+			} else {
+				if (arr.size() == 0 || arr.shape()[(size_t)axis] == 0)
+					throw nb::value_error(
+						"argmax(axis) of an empty sequence");
+				return DlxArray(arr.argmax((size_t)axis));
+			}
+		},
+		a.v);
+}
+
+nb::object dlx_any(const DlxArray &a) {
+	return std::visit([](const auto &arr) -> nb::object { return nb::cast(arr.any()); },
+					  a.v);
+}
+
+nb::object dlx_all(const DlxArray &a) {
+	return std::visit([](const auto &arr) -> nb::object { return nb::cast(arr.all()); },
+					  a.v);
+}
+
+DlxArray dlx_any_axis(const DlxArray &a, int64_t axis) {
+	axis = normalize_axis(a, axis);
+	return std::visit(
+		[&](const auto &arr) -> DlxArray {
+			return DlxArray(arr.any_axis((size_t)axis));
+		},
+		a.v);
+}
+
+DlxArray dlx_all_axis(const DlxArray &a, int64_t axis) {
+	axis = normalize_axis(a, axis);
+	return std::visit(
+		[&](const auto &arr) -> DlxArray {
+			return DlxArray(arr.all_axis((size_t)axis));
 		},
 		a.v);
 }
@@ -3348,6 +3489,41 @@ NB_MODULE(_dracolix_nb, m) {
 			"mean",
 			[](const DlxArray &a, int64_t axis) {
 				return dlx_mean_axis(a, axis);
+			},
+			nb::arg("axis"))
+		.def("prod", [](const DlxArray &a) { return dlx_prod(a); })
+		.def(
+			"prod",
+			[](const DlxArray &a, int64_t axis) {
+				return dlx_prod_axis(a, axis);
+			},
+			nb::arg("axis"))
+		.def("argmin", [](const DlxArray &a) { return dlx_argmin(a); })
+		.def(
+			"argmin",
+			[](const DlxArray &a, int64_t axis) {
+				return dlx_argmin_axis(a, axis);
+			},
+			nb::arg("axis"))
+		.def("argmax", [](const DlxArray &a) { return dlx_argmax(a); })
+		.def(
+			"argmax",
+			[](const DlxArray &a, int64_t axis) {
+				return dlx_argmax_axis(a, axis);
+			},
+			nb::arg("axis"))
+		.def("any", [](const DlxArray &a) { return dlx_any(a); })
+		.def(
+			"any",
+			[](const DlxArray &a, int64_t axis) {
+				return dlx_any_axis(a, axis);
+			},
+			nb::arg("axis"))
+		.def("all", [](const DlxArray &a) { return dlx_all(a); })
+		.def(
+			"all",
+			[](const DlxArray &a, int64_t axis) {
+				return dlx_all_axis(a, axis);
 			},
 			nb::arg("axis"))
 

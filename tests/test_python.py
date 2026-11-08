@@ -575,3 +575,99 @@ def test_linspace_dtype_and_complex():
     assert z.dtype is dlx.c128
     assert z.tolist()[0] == 0j
     assert z.tolist()[-1] == pytest.approx(1 + 1j)
+
+
+# ---------------------------------------------------------------------------
+# 0.3.3: reductions (prod / argmin / argmax / any / all)
+# ---------------------------------------------------------------------------
+def test_prod_basic():
+    a = dlx.array([[1.0, 2.0], [3.0, 4.0]])
+    assert a.prod() == 24.0
+    assert a.prod(0).tolist() == [3.0, 8.0]
+    assert a.prod(1).tolist() == [2.0, 12.0]
+    assert a.prod(-1).tolist() == [2.0, 12.0]
+
+    i = dlx.array([2, 3, 4], dtype=dlx.i32)
+    assert i.prod() == 24
+    assert isinstance(i.prod(), int)
+    assert i.prod(0).tolist() == [24]
+
+
+def test_prod_bool():
+    b = dlx.array([True, True, False])
+    assert b.prod() == 0
+    assert isinstance(b.prod(), int)
+    assert dlx.array([True, True]).prod() == 1
+    m = dlx.array([[True, False], [True, True]])
+    r = m.prod(0)
+    assert r.dtype is dlx.i64
+    assert r.tolist() == [1, 0]
+
+
+def test_argmin_argmax_global():
+    a = dlx.array([3.0, 1.0, 2.0])
+    assert a.argmin() == 1
+    assert a.argmax() == 0
+    assert isinstance(a.argmin(), int)
+
+    b = dlx.array([[1, 5], [9, 2]], dtype=dlx.i64)
+    assert b.argmin() == 0
+    assert b.argmax() == 2  # flat C-order index
+
+    assert dlx.array([True, False]).argmin() == 1
+    with pytest.raises(TypeError):
+        dlx.array([1j, 2j]).argmin()
+
+
+def test_argmin_argmax_axis():
+    b = dlx.array([[1, 5], [9, 2]], dtype=dlx.i64)
+    r = b.argmin(0)
+    assert r.dtype is dlx.i64
+    assert r.tolist() == [0, 1]
+    assert b.argmin(1).tolist() == [0, 1]
+    assert b.argmax(0).tolist() == [1, 0]
+    assert b.argmax(1).tolist() == [1, 0]
+    assert b.argmax(-1).tolist() == [1, 0]
+    with pytest.raises(IndexError):
+        b.argmin(2)
+    with pytest.raises(TypeError):
+        dlx.array([[1j]]).argmin(0)
+
+
+def test_any_all():
+    a = dlx.array([0, 0, 3])
+    assert a.any() is True
+    assert a.all() is False
+    assert dlx.array([0, 0]).any() is False
+    assert dlx.array([1, 2]).all() is True
+
+    m = dlx.array([[0, 1], [0, 0]])
+    assert m.any(0).dtype is dlx.bool_
+    assert m.any(0).tolist() == [False, True]
+    assert m.all(0).tolist() == [False, False]
+    assert m.any(1).tolist() == [True, False]
+    assert m.all(1).tolist() == [False, False]
+
+    z = dlx.array([0j, 1 + 0j])
+    assert z.any() is True
+    assert z.all() is False
+    assert dlx.array([0j]).any() is False
+
+
+def test_bool_min_max():
+    b = dlx.array([True, False])
+    assert b.min() is False  # logical AND
+    assert b.max() is True  # logical OR
+    assert dlx.array([True, True]).min() is True
+    assert dlx.array([False, False]).max() is False
+
+
+def test_sequence_operands():
+    a = dlx.array([1, 2, 3], dtype=dlx.i64)
+    assert (a < [3, 3, 3]).tolist() == [True, True, False]
+    assert (a == [1, 9, 3]).tolist() == [True, False, True]
+    assert (a + [1, 1, 1]).tolist() == [2, 3, 4]
+    assert (a * (1, 2, 3)).tolist() == [1, 4, 9]
+
+    m = dlx.array([[1, 2], [3, 4]])
+    assert (m < [2, 3]).tolist() == [[True, True], [False, False]]

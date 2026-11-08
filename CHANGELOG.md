@@ -6,6 +6,45 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-11-08
+
+### Added
+
+- Python: `Array.prod()` and `Array.prod(axis)` reductions (empty product is
+  `1`; bool input returns `i64` 0/1, matching NumPy).
+- Python: `Array.argmin()` / `Array.argmax()` and axis forms. Scalar forms
+  return a Python `int` flat C-order index; axis forms return `i64` index
+  arrays. Empty inputs raise `ValueError`, complex inputs raise `TypeError`.
+- Python: `Array.any()` / `Array.all()` and axis forms (bool scalar / bool
+  array; empty identities follow NumPy: `any() -> False`, `all() -> True`).
+- Python: binary operators now accept list/tuple operands, so
+  `arr < [1, 2, 3]` and `arr + [1, 2, 3]` behave like NumPy.
+
+### Fixed
+
+- Core: `Array::prod()` and `Array::prod(axis)` always returned `0` because the
+  accumulator was seeded with `T{}`; products now seed with the
+  multiplicative identity.
+- Core: `Array::argmin(axis)` / `Array::argmax(axis)` returned the min/max
+  **values** with the element dtype instead of indices; they now return `i64`
+  index arrays.
+- Python: `min()` on bool arrays returned logical OR (`any`); it now returns
+  logical AND, while `max()` remains logical OR.
+
+### Changed
+
+- Python: `bindings/python/dracolix/__init__.pyi` is now the authoritative type
+  stub for `import dracolix`.
+- Python: `std`/`var` are intentionally not exposed in 0.3.3; the axis
+  implementations were incorrect and are deferred to 0.3.4.
+
+## [0.3.2] - 2026-11-07
+
+### Changed
+
+- Version bump only: `CMakeLists.txt`, `core/include/dracolix/dracolix.hpp`,
+  and `pyproject.toml`.
+
 ## [0.3.1] - 2026-11-06
 
 ### Added
@@ -93,6 +132,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - CI: Python jobs build/test on 3.12, 3.14, and 3.15, and the wheel test
   command now runs the full test suite.
 
-[Unreleased]: https://github.com/draconis-engineering/dracolix/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/draconis-engineering/dracolix/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/draconis-engineering/dracolix/releases/tag/v0.3.3
+[0.3.2]: https://github.com/draconis-engineering/dracolix/releases/tag/v0.3.2
+[0.3.1]: https://github.com/draconis-engineering/dracolix/releases/tag/v0.3.1
 [0.3.0]: https://github.com/draconis-engineering/dracolix/releases/tag/v0.3.0
 [0.2.8]: https://github.com/draconis-engineering/dracolix/releases/tag/v0.2.8
