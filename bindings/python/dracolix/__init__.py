@@ -6,7 +6,7 @@ Arrays interoperate with numpy / memoryview through the PEP 3118 buffer protocol
 
 import sys as _sys
 
-from . import _dracolix_nb as _native
+from . import _dracolix_nb as _native  # type: ignore
 from ._dracolix_nb import (  # type: ignore
     Array,
     CscMatrix,
@@ -61,6 +61,8 @@ from ._dracolix_nb import (  # type: ignore
     lu,
     matmul,
     matvec,
+    maximum,
+    minimum,
     norm,
     ones,
     qr,
@@ -69,8 +71,8 @@ from ._dracolix_nb import (  # type: ignore
     sin,
     sinh,
     solve,
-    square,
     sqrt,
+    square,
     svd,
     tan,
     tanh,
@@ -145,6 +147,8 @@ __all__ = [
     "lu",
     "matmul",
     "matvec",
+    "maximum",
+    "minimum",
     "norm",
     "ones",
     "qr",
@@ -153,8 +157,8 @@ __all__ = [
     "sin",
     "sinh",
     "solve",
-    "square",
     "sqrt",
+    "square",
     "svd",
     "tan",
     "tanh",
@@ -220,7 +224,7 @@ def dtype(x) -> DType:
     raise TypeError("expected Array, DType, or a dtype name string")
 
 
-def _version_info() -> tuple:
+def _version_info() -> tuple[int, ...]:
     return tuple(int(p) for p in __version__.split("."))
 
 

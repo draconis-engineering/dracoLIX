@@ -59,6 +59,7 @@ bool is_number(nb::handle h) noexcept { return num_kind(h) != NumKind::None; }
 // ---------------------------------------------------------------------------
 // The Python-facing array: a type-erased container over the core Array<T>
 // ---------------------------------------------------------------------------
+
 struct DlxArray {
 	using Variant =
 		std::variant<dracolix::Array<float>, dracolix::Array<double>,
@@ -147,6 +148,7 @@ DlxArray &as_array(nb::handle h) {
 // ---------------------------------------------------------------------------
 // DType wrapper + singleton registry
 // ---------------------------------------------------------------------------
+
 struct DlxDType {
 	dracolix::DType dt = dracolix::DType::Void;
 	constexpr explicit DlxDType(dracolix::DType d) : dt(d) {}
@@ -212,6 +214,7 @@ std::optional<dracolix::DType> optional_dtype(nb::handle h) {
 // nanobind 3.x has no std::complex<T> caster, so complex scalars cross the
 // Python boundary through the CPython complex API.
 // ---------------------------------------------------------------------------
+
 std::complex<double> to_complex(nb::handle h) {
 	if (PyComplex_Check(h.ptr())) {
 		Py_complex z = PyComplex_AsCComplex(h.ptr());
@@ -332,6 +335,7 @@ DlxArray scalar_slot(nb::handle h) {
 // ---------------------------------------------------------------------------
 // dtype promotion (rules documented in __init__.pyi)
 // ---------------------------------------------------------------------------
+
 bool is_complex_dtype(dracolix::DType d) {
 	return d == dracolix::DType::C64 || d == dracolix::DType::C128;
 }
@@ -458,6 +462,7 @@ dracolix::DType promote_pair(dracolix::DType a, dracolix::DType b) {
 // ---------------------------------------------------------------------------
 // dtype casting (core Array<T>::astype)
 // ---------------------------------------------------------------------------
+
 template <typename T> DlxArray cast_cpp(const DlxArray &a) {
 	return std::visit(
 		[](const auto &arr) { return DlxArray(arr.template astype<T>()); },
@@ -772,11 +777,10 @@ DlxArray bin_typed(const DlxArray &A, const DlxArray &B, BinOp op) {
 				a, b, [](R x, R y) { return floor_div_scalar(x, y); }));
 	case BinOp::Mod:
 		if constexpr (dracolix::is_complex_v<R>)
-			throw nb::type_error(
-				"modulo is not supported for complex dtypes");
+			throw nb::type_error("modulo is not supported for complex dtypes");
 		else
-			return DlxArray(zip_bcast(
-				a, b, [](R x, R y) { return mod_scalar(x, y); }));
+			return DlxArray(
+				zip_bcast(a, b, [](R x, R y) { return mod_scalar(x, y); }));
 	case BinOp::And:
 		if constexpr (std::is_integral_v<R>)
 			return DlxArray(zip_bcast(
@@ -805,8 +809,7 @@ DlxArray bin_typed(const DlxArray &A, const DlxArray &B, BinOp op) {
 				return shift_scalar(x, y, op == BinOp::LShift);
 			}));
 		} else {
-			throw nb::type_error(
-				"shift operators require integer arrays");
+			throw nb::type_error("shift operators require integer arrays");
 		}
 	}
 	case BinOp::Eq:
@@ -1065,6 +1068,7 @@ DlxArray dlx_invert(const DlxArray &a) {
 // ---------------------------------------------------------------------------
 // matmul (core dracolix::linalg::matmul; 1-D @ 1-D -> scalar dot)
 // ---------------------------------------------------------------------------
+
 nb::object dlx_matmul(nb::object x, nb::object y) {
 	std::optional<DlxArray> A, B;
 	if (!coerce_operand(x, A) || !coerce_operand(y, B))
@@ -1097,6 +1101,7 @@ nb::object dlx_matmul(nb::object x, nb::object y) {
 // ---------------------------------------------------------------------------
 // Indexing
 // ---------------------------------------------------------------------------
+
 struct KeySpec {
 	bool is_int = false;
 	int64_t idx = 0;
@@ -1304,6 +1309,7 @@ nb::object dlx_setitem(DlxArray &self, nb::object key, nb::object val) {
 // nanobind does not ship def_buffer(); we wire bf_getbuffer /
 // bf_releasebuffer on the registered type ourselves.
 // ---------------------------------------------------------------------------
+
 const char *buffer_format(dracolix::DType dt) {
 	switch (dt) {
 	case dracolix::DType::F32:
@@ -1496,6 +1502,7 @@ void install_buffer_slots() {
 // ---------------------------------------------------------------------------
 // Buffer input (numpy / memoryview -> DlxArray)
 // ---------------------------------------------------------------------------
+
 dracolix::DType infer_format_dtype(const char *fmt, Py_ssize_t itemsize) {
 	if (fmt == nullptr || *fmt == 0) {
 		if (itemsize == 1)
@@ -1767,6 +1774,7 @@ DlxArray from_buffer(nb::object o, std::optional<dracolix::DType> dt) {
 // ---------------------------------------------------------------------------
 // list / tuple input
 // ---------------------------------------------------------------------------
+
 void walk_sequence(nb::object o, size_t depth, std::vector<size_t> &shape,
 				   std::vector<nb::object> &leaves, bool &any_float,
 				   bool &any_int, bool &any_bool, bool &any_complex) {
@@ -1940,6 +1948,7 @@ DlxArray from_list(nb::object o, std::optional<dracolix::DType> dt) {
 // ---------------------------------------------------------------------------
 // dlx.array / dlx.asarray
 // ---------------------------------------------------------------------------
+
 DlxArray dlx_array(nb::object data, nb::object dtype) {
 	std::optional<dracolix::DType> dt = optional_dtype(dtype);
 	if (is_array(data))
@@ -1966,6 +1975,7 @@ nb::object dlx_asarray(nb::object data, nb::object dtype) {
 // ---------------------------------------------------------------------------
 // shape parsing for zeros / ones / full / empty
 // ---------------------------------------------------------------------------
+
 std::vector<size_t> parse_shape(nb::object o) {
 	std::vector<size_t> shape;
 	if (PyLong_Check(o.ptr())) {
@@ -2244,6 +2254,7 @@ DlxArray dlx_linspace(nb::object start, nb::object stop, nb::object num,
 // ---------------------------------------------------------------------------
 // Iteration
 // ---------------------------------------------------------------------------
+
 struct FlatIter {
 	const DlxArray *arr = nullptr;
 	int64_t i = 0;
@@ -2278,6 +2289,7 @@ nb::object make_iter(const DlxArray &self, nb::handle scope) {
 // ---------------------------------------------------------------------------
 // reductions
 // ---------------------------------------------------------------------------
+
 nb::object dlx_sum(const DlxArray &a) {
 	return std::visit(
 		[](const auto &arr) -> nb::object {
@@ -2547,8 +2559,7 @@ DlxArray dlx_argmin_axis(const DlxArray &a, int64_t axis) {
 									 "arrays (no ordering)");
 			} else {
 				if (arr.size() == 0 || arr.shape()[(size_t)axis] == 0)
-					throw nb::value_error(
-						"argmin(axis) of an empty sequence");
+					throw nb::value_error("argmin(axis) of an empty sequence");
 				return DlxArray(arr.argmin((size_t)axis));
 			}
 		},
@@ -2565,8 +2576,7 @@ DlxArray dlx_argmax_axis(const DlxArray &a, int64_t axis) {
 									 "arrays (no ordering)");
 			} else {
 				if (arr.size() == 0 || arr.shape()[(size_t)axis] == 0)
-					throw nb::value_error(
-						"argmax(axis) of an empty sequence");
+					throw nb::value_error("argmax(axis) of an empty sequence");
 				return DlxArray(arr.argmax((size_t)axis));
 			}
 		},
@@ -2574,13 +2584,13 @@ DlxArray dlx_argmax_axis(const DlxArray &a, int64_t axis) {
 }
 
 nb::object dlx_any(const DlxArray &a) {
-	return std::visit([](const auto &arr) -> nb::object { return nb::cast(arr.any()); },
-					  a.v);
+	return std::visit(
+		[](const auto &arr) -> nb::object { return nb::cast(arr.any()); }, a.v);
 }
 
 nb::object dlx_all(const DlxArray &a) {
-	return std::visit([](const auto &arr) -> nb::object { return nb::cast(arr.all()); },
-					  a.v);
+	return std::visit(
+		[](const auto &arr) -> nb::object { return nb::cast(arr.all()); }, a.v);
 }
 
 DlxArray dlx_any_axis(const DlxArray &a, int64_t axis) {
@@ -2715,6 +2725,7 @@ DlxArray dlx_angle(const DlxArray &a) {
 // -------------------------------------------------------------------------
 // Elementwise math (ufuncs)
 // -------------------------------------------------------------------------
+
 enum class UFunc {
 	Sqrt,
 	Exp,
@@ -2916,9 +2927,117 @@ DlxArray dlx_predicate(const DlxArray &a, Pred p) {
 		a.v);
 }
 
-// -------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// elementwise maximum / minimum
+// ---------------------------------------------------------------------------
+
+enum class MinMax { Maximum, Minimum };
+
+template <typename T> T minmax_scalar(T x, T y, MinMax op) {
+	if constexpr (dracolix::is_complex_v<T>) {
+		// NumPy orders complex values lexicographically: real part first,
+		// then imaginary part. NaN in either component propagates.
+		if (std::isnan(x.real()) || std::isnan(x.imag()))
+			return x;
+		if (std::isnan(y.real()) || std::isnan(y.imag()))
+			return y;
+		bool x_gt = x.real() > y.real() ||
+					(x.real() == y.real() && x.imag() > y.imag());
+		bool x_lt = x.real() < y.real() ||
+					(x.real() == y.real() && x.imag() < y.imag());
+		return op == MinMax::Maximum ? (x_gt ? x : y) : (x_lt ? x : y);
+	} else if constexpr (std::is_floating_point_v<T>) {
+		// IEEE maximum/minimum propagate NaN (unlike fmax/fmin).
+		if (std::isnan(x))
+			return x;
+		if (std::isnan(y))
+			return y;
+		return op == MinMax::Maximum ? (x >= y ? x : y) : (x <= y ? x : y);
+	} else {
+		return op == MinMax::Maximum ? (x >= y ? x : y) : (x <= y ? x : y);
+	}
+}
+
+template <typename T>
+DlxArray minmax_typed(const DlxArray &A, const DlxArray &B, MinMax op) {
+	const auto &a = *A.as<T>();
+	const auto &b = *B.as<T>();
+	return DlxArray(zip_bcast(a, b, [op](T x, T y) -> T {
+		return minmax_scalar(x, y, op);
+	}));
+}
+
+DlxArray minmax_switch(dracolix::DType dt, const DlxArray &A, const DlxArray &B,
+					   MinMax op) {
+	switch (dt) {
+	case dracolix::DType::F32:
+		return minmax_typed<float>(A, B, op);
+	case dracolix::DType::F64:
+		return minmax_typed<double>(A, B, op);
+	case dracolix::DType::I8:
+		return minmax_typed<int8_t>(A, B, op);
+	case dracolix::DType::I16:
+		return minmax_typed<int16_t>(A, B, op);
+	case dracolix::DType::I32:
+		return minmax_typed<int32_t>(A, B, op);
+	case dracolix::DType::I64:
+		return minmax_typed<int64_t>(A, B, op);
+	case dracolix::DType::U8:
+		return minmax_typed<uint8_t>(A, B, op);
+	case dracolix::DType::U16:
+		return minmax_typed<uint16_t>(A, B, op);
+	case dracolix::DType::U32:
+		return minmax_typed<uint32_t>(A, B, op);
+	case dracolix::DType::U64:
+		return minmax_typed<uint64_t>(A, B, op);
+	case dracolix::DType::Bool:
+		return minmax_typed<bool>(A, B, op);
+	case dracolix::DType::C64:
+		return minmax_typed<std::complex<float>>(A, B, op);
+	case dracolix::DType::C128:
+		return minmax_typed<std::complex<double>>(A, B, op);
+	default:
+		throw nb::type_error("unsupported dtype");
+	}
+}
+
+// Scalars participate like in the binary operators, except that a Python bool
+// stays bool so that ``maximum(bool_array, True)`` keeps the bool dtype.
+bool coerce_minmax_operand(nb::handle h, std::optional<DlxArray> &out) {
+	if (is_number(h) && num_kind(h) == NumKind::Bool) {
+		dracolix::Array<bool> a(std::vector<size_t>{1});
+		a[0] = nb::cast<bool>(h);
+		out = DlxArray(std::move(a));
+		return true;
+	}
+	return coerce_operand(h, out);
+}
+
+nb::object dlx_minmax(nb::object x, nb::object y, MinMax op) {
+	bool both_scalar = is_number(x) && is_number(y);
+	std::optional<DlxArray> A, B;
+	if (!coerce_minmax_operand(x, A) || !coerce_minmax_operand(y, B))
+		throw nb::type_error(op == MinMax::Maximum
+								 ? "maximum expected arrays or numbers"
+								 : "minimum expected arrays or numbers");
+	dracolix::DType dt = promote_pair(A->dtype(), B->dtype());
+	DlxArray Ca = cast_dtype(*A, dt);
+	DlxArray Cb = cast_dtype(*B, dt);
+	DlxArray out = minmax_switch(dt, Ca, Cb, op);
+	if (!both_scalar)
+		return nb::cast<DlxArray>(std::move(out));
+	return std::visit(
+		[](const auto &arr) -> nb::object {
+			using T = typename array_scalar<std::decay_t<decltype(arr)>>::type;
+			return scalar_to_py<T>(static_cast<T>(arr[0]));
+		},
+		out.v);
+}
+
+// ---------------------------------------------------------------------------
 // item / __index__
 // ---------------------------------------------------------------------------
+
 nb::object dlx_item(const DlxArray &a, nb::object index) {
 	size_t off = 0;
 	if (index.is_none()) {
@@ -2956,6 +3075,7 @@ nb::object dlx_index(const DlxArray &a) {
 // ---------------------------------------------------------------------------
 // tolist / repr
 // ---------------------------------------------------------------------------
+
 template <typename T>
 nb::object build_list(const dracolix::Array<T> &a, size_t d, size_t offset,
 					  const std::vector<size_t> &rst) {
@@ -3003,6 +3123,7 @@ std::string dlx_repr(const DlxArray &a) {
 // ---------------------------------------------------------------------------
 // reshape / transpose / astype / copy
 // ---------------------------------------------------------------------------
+
 DlxArray dlx_reshape(const DlxArray &a, nb::object shape) {
 	std::vector<size_t> s = parse_shape(shape);
 	return std::visit(
@@ -3806,14 +3927,17 @@ nb::object csc_cg_solve(const DlxCsc &m, nb::object bobj) {
 		m.v);
 }
 
+} // namespace
+
 // ---------------------------------------------------------------------------
 // module registration
 // ---------------------------------------------------------------------------
-} // namespace
 
 NB_MODULE(_dracolix_nb, m) {
-	m.doc() = "DracoLIX - a scientific computing runtime with a zero-NumPy "
-			  "Python API (interoperates via the PEP 3118 buffer protocol).";
+	m.doc() =
+		"DracoLIX - a scientific computing runtime from Draconis Engineering"
+		"The Python API is written from scratch with Nanobind"
+		"(interoperates via the PEP 3118 buffer protocol).";
 
 	m.attr("__version__") = DRACOLIX_PY_VERSION;
 
@@ -4297,54 +4421,87 @@ NB_MODULE(_dracolix_nb, m) {
 	m.def("angle", &dlx_angle, nb::arg("a"));
 
 	// ---- elementwise math ---------------------------------------------------
-	m.def("sqrt", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Sqrt); },
-		  nb::arg("a"));
-	m.def("exp", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Exp); },
-		  nb::arg("a"));
-	m.def("expm1", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Expm1); },
-		  nb::arg("a"));
-	m.def("log", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Log); },
-		  nb::arg("a"));
-	m.def("log1p", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Log1p); },
-		  nb::arg("a"));
-	m.def("log2", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Log2); },
-		  nb::arg("a"));
-	m.def("log10", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Log10); },
-		  nb::arg("a"));
-	m.def("sin", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Sin); },
-		  nb::arg("a"));
-	m.def("cos", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Cos); },
-		  nb::arg("a"));
-	m.def("tan", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Tan); },
-		  nb::arg("a"));
-	m.def("asin", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Asin); },
-		  nb::arg("a"));
-	m.def("acos", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Acos); },
-		  nb::arg("a"));
-	m.def("atan", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Atan); },
-		  nb::arg("a"));
-	m.def("sinh", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Sinh); },
-		  nb::arg("a"));
-	m.def("cosh", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Cosh); },
-		  nb::arg("a"));
-	m.def("tanh", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Tanh); },
-		  nb::arg("a"));
-	m.def("floor", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Floor); },
-		  nb::arg("a"));
-	m.def("ceil", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Ceil); },
-		  nb::arg("a"));
-	m.def("trunc", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Trunc); },
-		  nb::arg("a"));
+	m.def(
+		"sqrt", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Sqrt); },
+		nb::arg("a"));
+	m.def(
+		"exp", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Exp); },
+		nb::arg("a"));
+	m.def(
+		"expm1", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Expm1); },
+		nb::arg("a"));
+	m.def(
+		"log", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Log); },
+		nb::arg("a"));
+	m.def(
+		"log1p", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Log1p); },
+		nb::arg("a"));
+	m.def(
+		"log2", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Log2); },
+		nb::arg("a"));
+	m.def(
+		"log10", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Log10); },
+		nb::arg("a"));
+	m.def(
+		"sin", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Sin); },
+		nb::arg("a"));
+	m.def(
+		"cos", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Cos); },
+		nb::arg("a"));
+	m.def(
+		"tan", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Tan); },
+		nb::arg("a"));
+	m.def(
+		"asin", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Asin); },
+		nb::arg("a"));
+	m.def(
+		"acos", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Acos); },
+		nb::arg("a"));
+	m.def(
+		"atan", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Atan); },
+		nb::arg("a"));
+	m.def(
+		"sinh", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Sinh); },
+		nb::arg("a"));
+	m.def(
+		"cosh", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Cosh); },
+		nb::arg("a"));
+	m.def(
+		"tanh", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Tanh); },
+		nb::arg("a"));
+	m.def(
+		"floor", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Floor); },
+		nb::arg("a"));
+	m.def(
+		"ceil", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Ceil); },
+		nb::arg("a"));
+	m.def(
+		"trunc", [](const DlxArray &a) { return dlx_ufunc(a, UFunc::Trunc); },
+		nb::arg("a"));
 	m.def("square", &dlx_square, nb::arg("a"));
-	m.def("isfinite",
-		  [](const DlxArray &a) { return dlx_predicate(a, Pred::Finite); },
-		  nb::arg("a"));
-	m.def("isnan",
-		  [](const DlxArray &a) { return dlx_predicate(a, Pred::Nan); },
-		  nb::arg("a"));
-	m.def("isinf",
-		  [](const DlxArray &a) { return dlx_predicate(a, Pred::Inf); },
-		  nb::arg("a"));
+	m.def(
+		"isfinite",
+		[](const DlxArray &a) { return dlx_predicate(a, Pred::Finite); },
+		nb::arg("a"));
+	m.def(
+		"isnan", [](const DlxArray &a) { return dlx_predicate(a, Pred::Nan); },
+		nb::arg("a"));
+	m.def(
+		"isinf", [](const DlxArray &a) { return dlx_predicate(a, Pred::Inf); },
+		nb::arg("a"));
+
+	m.def(
+		"maximum",
+		[](nb::object x, nb::object y) {
+			return dlx_minmax(x, y, MinMax::Maximum);
+		},
+		nb::arg("x"), nb::arg("y"));
+	m.def(
+		"minimum",
+		[](nb::object x, nb::object y) {
+			return dlx_minmax(x, y, MinMax::Minimum);
+		},
+		nb::arg("x"), nb::arg("y"));
 
 	// ---- decompositions ----------------------------------------------------
 	m.def("lu", &dlx_lu, nb::arg("A"));

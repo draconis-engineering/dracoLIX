@@ -6,6 +6,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Python: elementwise `maximum` and `minimum` with NumPy-style broadcasting.
+  They accept arrays, sequences and scalars (including Python bools); NaN
+  propagates (unlike `fmax`/`fmin`) and complex values are ordered
+  lexicographically by real then imaginary part. Two scalar operands return a
+  Python scalar; otherwise the result dtype is the usual promotion.
+
 ## [0.3.4] - 2026-11-08
 
 ### Added

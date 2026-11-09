@@ -432,6 +432,16 @@ def isnan(a: Array) -> Array:
 def isinf(a: Array) -> Array:
     """Bool array; complex values are infinite when either part is infinite."""
 
+def maximum(x: Array | Any, y: Array | Any) -> Array | Scalar:
+    """Element-wise maximum with NumPy-style broadcasting.
+
+    Accepts arrays, sequences and scalars (including Python bools). NaN
+    propagates (unlike ``fmax``); complex values are ordered lexicographically
+    by (real, imaginary). The result uses the usual promotion of both operands;
+    two scalar operands return a scalar."""
+def minimum(x: Array | Any, y: Array | Any) -> Array | Scalar:
+    """Element-wise minimum; see :func:`maximum` for the dtype and NaN rules."""
+
 def diagonal(A: Array) -> Array:
     """Extract the diagonal of a 2-D array."""
 

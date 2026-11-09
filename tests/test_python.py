@@ -904,3 +904,51 @@ def test_predicates():
     assert dlx.isnan(a).tolist() == [False, True, False, False]
     assert dlx.isinf(a).tolist() == [False, False, True, True]
     assert dlx.isfinite(dlx.array([1, 2], dtype=dlx.i32)).tolist() == [True, True]
+
+
+# ---------------------------------------------------------------------------
+# elementwise maximum / minimum
+# ---------------------------------------------------------------------------
+def test_maximum_minimum():
+    a = dlx.array([1, 5, 3], dtype=dlx.i32)
+    b = dlx.array([4, 2, 3], dtype=dlx.i32)
+    assert dlx.maximum(a, b).tolist() == [4, 5, 3]
+    assert dlx.minimum(a, b).tolist() == [1, 2, 3]
+    assert dlx.maximum(a, b).dtype is dlx.i32
+
+    # broadcasting
+    m = dlx.array([[1], [2]], dtype=dlx.i64)
+    n = dlx.array([3, 0, 1], dtype=dlx.i64)
+    assert dlx.maximum(m, n).tolist() == [[3, 1, 1], [3, 2, 2]]
+    assert dlx.minimum(m, n).tolist() == [[1, 0, 1], [2, 0, 1]]
+
+    # scalars on either side; Python bool keeps the bool dtype
+    assert dlx.maximum(a, 2).tolist() == [2, 5, 3]
+    assert dlx.minimum(2, a).tolist() == [1, 2, 2]
+    assert dlx.maximum(dlx.array([True, False]), True).dtype is dlx.bool_
+    assert dlx.maximum(dlx.array([True, False]), True).tolist() == [True, True]
+    assert dlx.maximum(dlx.array([1, 2], dtype=dlx.i8), True).dtype is dlx.i8
+
+    # NaN propagates (unlike fmax/fmin)
+    r = dlx.maximum(dlx.array([math.nan, 1.0]), dlx.array([2.0, math.nan]))
+    assert math.isnan(r[0]) and math.isnan(r[1])
+    r = dlx.minimum(dlx.array([math.nan, 1.0]), dlx.array([2.0, 0.0]))
+    assert math.isnan(r[0]) and r[1] == 0.0
+
+    # complex is ordered lexicographically (real, then imaginary)
+    assert dlx.maximum(dlx.array([1 + 2j]), dlx.array([1 + 1j])).tolist() == [1 + 2j]
+    assert dlx.minimum(dlx.array([2 + 0j]), dlx.array([1 + 9j])).tolist() == [1 + 9j]
+
+    # mixed dtype promotion and sequence inputs
+    r = dlx.maximum(dlx.array([1, 2], dtype=dlx.i8), dlx.array([1.5, 0.5]))
+    assert r.dtype is dlx.f64
+    assert r.tolist() == [1.5, 2.0]
+    assert dlx.maximum([1, 2], [2, 1]).tolist() == [2, 2]
+
+    # two scalar operands return a scalar
+    assert dlx.maximum(1, 2) == 2
+    assert dlx.minimum(2.5, 1) == 1.0
+    assert dlx.maximum(1 + 1j, 1 + 2j) == 1 + 2j
+
+    with pytest.raises(TypeError):
+        dlx.maximum(dlx.array([1, 2]), "x")
