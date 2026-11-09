@@ -81,6 +81,7 @@ from ._dracolix_nb import (  # type: ignore
     u16,
     u32,
     u64,
+    where,
     zeros,
 )
 
@@ -167,6 +168,7 @@ __all__ = [
     "u16",
     "u32",
     "u64",
+    "where",
     "zeros",
 ]
 

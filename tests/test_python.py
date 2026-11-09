@@ -952,3 +952,44 @@ def test_maximum_minimum():
 
     with pytest.raises(TypeError):
         dlx.maximum(dlx.array([1, 2]), "x")
+
+
+# ---------------------------------------------------------------------------
+# where(condition, x, y)
+# ---------------------------------------------------------------------------
+def test_where():
+    c = dlx.array([True, False, True])
+    assert dlx.where(c, dlx.array([1, 2, 3]), dlx.array([10, 20, 30])).tolist() == [
+        1,
+        20,
+        3,
+    ]
+    assert dlx.where(c, 1, 0).tolist() == [1, 0, 1]
+
+    # three-way broadcasting: cond (2, 1), x/y (3,)
+    cond = dlx.array([[True], [False]])
+    x = dlx.array([1, 2, 3])
+    y = dlx.array([10, 20, 30])
+    assert dlx.where(cond, x, y).tolist() == [[1, 2, 3], [10, 20, 30]]
+
+    # non-bool conditions use truthiness; complex uses both components
+    assert dlx.where(dlx.array([0.0, 2.0]), 1, 0).tolist() == [0, 1]
+    assert dlx.where(dlx.array([0 + 0j, 0 + 2j]), 1, 0).tolist() == [0, 1]
+
+    # result dtype promotes x/y; Python bools keep the bool dtype
+    r = dlx.where(c, dlx.array([1, 2, 3], dtype=dlx.i32), 2.5)
+    assert r.dtype is dlx.f64
+    assert r.tolist() == [1.0, 2.5, 3.0]
+    rb = dlx.where(c, True, False)
+    assert rb.dtype is dlx.bool_
+    assert rb.tolist() == [True, False, True]
+
+    # all scalar operands return a Python scalar
+    assert dlx.where(True, 1, 2) == 1
+    assert dlx.where(False, 1, 2) == 2
+    assert dlx.where(True, 1.0, 2) == 1.0
+
+    with pytest.raises(ValueError):
+        dlx.where(dlx.array([True, False]), dlx.array([1, 2, 3]), 0)
+    with pytest.raises(TypeError):
+        dlx.where(dlx.array([True]), "x", 0)

@@ -442,6 +442,16 @@ def maximum(x: Array | Any, y: Array | Any) -> Array | Scalar:
 def minimum(x: Array | Any, y: Array | Any) -> Array | Scalar:
     """Element-wise minimum; see :func:`maximum` for the dtype and NaN rules."""
 
+def where(
+    condition: Array | Any, x: Array | Any, y: Array | Any
+) -> Array | Scalar:
+    """Element-wise selection: ``x`` where ``condition`` is truthy, else ``y``.
+
+    All three operands broadcast together. Conditions may have any dtype and
+    use Python truthiness (complex values are truthy when either part is
+    non-zero). The result dtype is the promotion of ``x`` and ``y``; three
+    scalar operands return a scalar."""
+
 def diagonal(A: Array) -> Array:
     """Extract the diagonal of a 2-D array."""
 

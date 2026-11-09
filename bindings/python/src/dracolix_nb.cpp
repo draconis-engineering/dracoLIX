@@ -2962,9 +2962,8 @@ template <typename T>
 DlxArray minmax_typed(const DlxArray &A, const DlxArray &B, MinMax op) {
 	const auto &a = *A.as<T>();
 	const auto &b = *B.as<T>();
-	return DlxArray(zip_bcast(a, b, [op](T x, T y) -> T {
-		return minmax_scalar(x, y, op);
-	}));
+	return DlxArray(zip_bcast(
+		a, b, [op](T x, T y) -> T { return minmax_scalar(x, y, op); }));
 }
 
 DlxArray minmax_switch(dracolix::DType dt, const DlxArray &A, const DlxArray &B,
@@ -3003,7 +3002,7 @@ DlxArray minmax_switch(dracolix::DType dt, const DlxArray &A, const DlxArray &B,
 
 // Scalars participate like in the binary operators, except that a Python bool
 // stays bool so that ``maximum(bool_array, True)`` keeps the bool dtype.
-bool coerce_minmax_operand(nb::handle h, std::optional<DlxArray> &out) {
+bool coerce_elementwise_operand(nb::handle h, std::optional<DlxArray> &out) {
 	if (is_number(h) && num_kind(h) == NumKind::Bool) {
 		dracolix::Array<bool> a(std::vector<size_t>{1});
 		a[0] = nb::cast<bool>(h);
@@ -3013,10 +3012,19 @@ bool coerce_minmax_operand(nb::handle h, std::optional<DlxArray> &out) {
 	return coerce_operand(h, out);
 }
 
+nb::object first_element(const DlxArray &a) {
+	return std::visit(
+		[](const auto &arr) -> nb::object {
+			using T = typename array_scalar<std::decay_t<decltype(arr)>>::type;
+			return scalar_to_py<T>(static_cast<T>(arr[0]));
+		},
+		a.v);
+}
+
 nb::object dlx_minmax(nb::object x, nb::object y, MinMax op) {
 	bool both_scalar = is_number(x) && is_number(y);
 	std::optional<DlxArray> A, B;
-	if (!coerce_minmax_operand(x, A) || !coerce_minmax_operand(y, B))
+	if (!coerce_elementwise_operand(x, A) || !coerce_elementwise_operand(y, B))
 		throw nb::type_error(op == MinMax::Maximum
 								 ? "maximum expected arrays or numbers"
 								 : "minimum expected arrays or numbers");
@@ -3026,12 +3034,109 @@ nb::object dlx_minmax(nb::object x, nb::object y, MinMax op) {
 	DlxArray out = minmax_switch(dt, Ca, Cb, op);
 	if (!both_scalar)
 		return nb::cast<DlxArray>(std::move(out));
+	return first_element(out);
+}
+
+// ---------------------------------------------------------------------------
+// where(condition, x, y)
+// ---------------------------------------------------------------------------
+
+// Conditions may have any dtype; use Python/NumPy truthiness (a complex value
+// is true when either component is non-zero).
+dracolix::Array<bool> truthy_mask(const DlxArray &c) {
 	return std::visit(
-		[](const auto &arr) -> nb::object {
+		[](const auto &arr) {
 			using T = typename array_scalar<std::decay_t<decltype(arr)>>::type;
-			return scalar_to_py<T>(static_cast<T>(arr[0]));
+			dracolix::Array<bool> out(arr.shape());
+			for (size_t i = 0; i < arr.size(); ++i) {
+				if constexpr (dracolix::is_complex_v<T>) {
+					T v = arr[i];
+					out[i] = v.real() != 0 || v.imag() != 0;
+				} else if constexpr (std::is_same_v<T, bool>) {
+					out[i] = arr[i];
+				} else {
+					out[i] = arr[i] != T(0);
+				}
+			}
+			return out;
 		},
-		out.v);
+		c.v);
+}
+
+template <typename R>
+DlxArray where_typed(const dracolix::Array<bool> &cond,
+					 const dracolix::Array<R> &x, const dracolix::Array<R> &y) {
+	auto shape = bcast_shape(bcast_shape(cond.shape(), x.shape()), y.shape());
+	dracolix::Array<R> out(shape);
+	size_t nd = shape.size();
+	std::vector<size_t> idx(nd);
+	for (size_t flat = 0; flat < out.size(); ++flat) {
+		size_t rem = flat;
+		for (int d = (int)nd - 1; d >= 0; --d) {
+			idx[d] = rem % shape[d];
+			rem /= shape[d];
+		}
+		size_t oc = bcast_offset(cond.shape(), cond.strides(), idx, nd);
+		size_t ox = bcast_offset(x.shape(), x.strides(), idx, nd);
+		size_t oy = bcast_offset(y.shape(), y.strides(), idx, nd);
+		out[flat] = cond[oc] ? x[ox] : y[oy];
+	}
+	return DlxArray(std::move(out));
+}
+
+DlxArray where_switch(dracolix::DType dt, const dracolix::Array<bool> &cond,
+					  const DlxArray &X, const DlxArray &Y) {
+	switch (dt) {
+	case dracolix::DType::F32:
+		return where_typed<float>(cond, *X.as<float>(), *Y.as<float>());
+	case dracolix::DType::F64:
+		return where_typed<double>(cond, *X.as<double>(), *Y.as<double>());
+	case dracolix::DType::I8:
+		return where_typed<int8_t>(cond, *X.as<int8_t>(), *Y.as<int8_t>());
+	case dracolix::DType::I16:
+		return where_typed<int16_t>(cond, *X.as<int16_t>(), *Y.as<int16_t>());
+	case dracolix::DType::I32:
+		return where_typed<int32_t>(cond, *X.as<int32_t>(), *Y.as<int32_t>());
+	case dracolix::DType::I64:
+		return where_typed<int64_t>(cond, *X.as<int64_t>(), *Y.as<int64_t>());
+	case dracolix::DType::U8:
+		return where_typed<uint8_t>(cond, *X.as<uint8_t>(), *Y.as<uint8_t>());
+	case dracolix::DType::U16:
+		return where_typed<uint16_t>(cond, *X.as<uint16_t>(),
+									 *Y.as<uint16_t>());
+	case dracolix::DType::U32:
+		return where_typed<uint32_t>(cond, *X.as<uint32_t>(),
+									 *Y.as<uint32_t>());
+	case dracolix::DType::U64:
+		return where_typed<uint64_t>(cond, *X.as<uint64_t>(),
+									 *Y.as<uint64_t>());
+	case dracolix::DType::Bool:
+		return where_typed<bool>(cond, *X.as<bool>(), *Y.as<bool>());
+	case dracolix::DType::C64:
+		return where_typed<std::complex<float>>(
+			cond, *X.as<std::complex<float>>(), *Y.as<std::complex<float>>());
+	case dracolix::DType::C128:
+		return where_typed<std::complex<double>>(
+			cond, *X.as<std::complex<double>>(), *Y.as<std::complex<double>>());
+	default:
+		throw nb::type_error("unsupported dtype");
+	}
+}
+
+nb::object dlx_where(nb::object condition, nb::object x, nb::object y) {
+	bool all_scalar = is_number(condition) && is_number(x) && is_number(y);
+	std::optional<DlxArray> C, X, Y;
+	if (!coerce_elementwise_operand(condition, C) ||
+		!coerce_elementwise_operand(x, X) || !coerce_elementwise_operand(y, Y))
+		throw nb::type_error("where expected arrays or numbers");
+	dracolix::DType dt = promote_pair(X->dtype(), Y->dtype());
+	DlxArray Xc = cast_dtype(*X, dt);
+	DlxArray Yc = cast_dtype(*Y, dt);
+	dracolix::Array<bool> mask = truthy_mask(*C);
+	DlxArray out = where_switch(dt, mask, Xc, Yc);
+	if (!all_scalar)
+		return nb::cast<DlxArray>(std::move(out));
+	return first_element(out);
 }
 
 // ---------------------------------------------------------------------------
@@ -4502,6 +4607,12 @@ NB_MODULE(_dracolix_nb, m) {
 			return dlx_minmax(x, y, MinMax::Minimum);
 		},
 		nb::arg("x"), nb::arg("y"));
+	m.def(
+		"where",
+		[](nb::object condition, nb::object x, nb::object y) {
+			return dlx_where(condition, x, y);
+		},
+		nb::arg("condition"), nb::arg("x"), nb::arg("y"));
 
 	// ---- decompositions ----------------------------------------------------
 	m.def("lu", &dlx_lu, nb::arg("A"));

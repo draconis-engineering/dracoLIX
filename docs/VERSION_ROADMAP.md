@@ -16,7 +16,62 @@ release-level scope, semantic decisions, and deferrals.
 
 ---
 
-## v0.3.6 (Planned)
+## v0.3.5 (In progress)
+
+### Goals
+
+Add the NumPy-style elementwise selection helpers that were deferred from the
+0.3.4 ufunc surface.
+
+### In scope
+
+- Python module-level `maximum(x, y)` / `minimum(x, y)` with broadcasting.
+- Python module-level `where(condition, x, y)` with three-way broadcasting.
+- Array, sequence and scalar operands for all arguments; scalar/scalar input
+  returns a Python scalar.
+- Exports, canonical stub, tests, CHANGELOG.
+
+### Out of scope
+
+- `fmax`/`fmin` (NaN-ignoring variants) and the one-argument
+  `where(condition)` index form.
+- `nonzero`/`count_nonzero`.
+- Empty arrays (see v0.3.6) and N-D shape work (see v0.3.7).
+
+### Design decisions
+
+- **D1** - `maximum`/`minimum` are module-level only (no `Array` methods),
+  matching NumPy. They promote through the usual pair rules, so mixed real
+  dtypes widen as in the binary operators.
+- **D2** - NaN propagates in `maximum`/`minimum` (unlike `fmax`/`fmin`).
+  Complex values are ordered lexicographically by `(real, imag)`; NaN in
+  either component propagates that operand.
+- **D3** - Scalars participate anywhere. A Python bool stays `bool` (so
+  `maximum(bool_array, True) -> bool`); otherwise scalars use the existing
+  weak promotion (Python `int` behaves like `i64`). Two scalar operands return
+  a Python scalar because dracolix has no 0-d arrays.
+- **D4** - `where` promotes only `x` and `y`; the condition may have any dtype
+  and uses Python truthiness (complex is true when either component is
+  non-zero). Three scalar operands return a Python scalar.
+
+### Testing plan
+
+- `maximum`/`minimum`: dtype matrix, broadcasting, NaN propagation, complex
+  ordering, scalar operands, `numpy` cross-checks.
+- `where`: bool/real/complex truthiness, three-way broadcasting, scalar
+  returns, dtype promotion, mismatched-shape errors.
+
+### Release checklist
+
+- [x] Bindings + exports + canonical stub
+- [x] Python tests (numpy cross-checks where available)
+- [x] CHANGELOG + version bump
+- [x] pytest + ctest green
+- [ ] Tag and publish v0.3.5
+
+---
+
+## v0.3.7 (Planned)
 
 ### Goals
 
@@ -70,7 +125,7 @@ NumPy-inspired shape manipulation that is currently missing or subtly wrong.
 
 ---
 
-## v0.3.5 (Planned)
+## v0.3.6 (Planned)
 
 ### Goals
 
@@ -123,7 +178,7 @@ masking/filtering use cases and NumPy empty identities.
 
 ---
 
-## v0.3.4 (In progress - code complete, unreleased)
+## v0.3.4 (Released 2026-11-08)
 
 ### Goals
 
@@ -156,7 +211,7 @@ the missing elementwise math (ufunc) surface.
 - Module-level reduction functions (`dracolix.sum(a)`, ...).
 - In-place operators (`+=`, ...), `divmod`, `round`.
 - Integer reduction promotion/overflow changes; power overflow checks.
-- Fancy indexing, reshape work (see v0.3.5/v0.3.6).
+- Fancy indexing, reshape work (see v0.3.6/v0.3.7).
 
 ### Design decisions
 
@@ -227,7 +282,7 @@ the missing elementwise math (ufunc) surface.
 - [x] Python tests added
 - [x] CHANGELOG + version bump
 - [x] ctest + pytest green
-- [ ] Tag and publish v0.3.4
+- [x] Tag and publish v0.3.4
 
 ---
 
@@ -259,7 +314,7 @@ Python.
 - `cumsum`/`cumprod`, `sort`/`argsort`, `where`, `nonzero`, `count_nonzero`.
 - Integer `sum`/`prod` dtype promotion and overflow handling.
 - Aligning `sum`/`min`/`max`/`mean` empty-array behavior with the new NumPy
-  identities (they still raise) → **v0.3.5**, together with empty-array
+  identities (they still raise) → **v0.3.6**, together with empty-array
   construction support.
 
 ### Design decisions

@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-11-09
+
 ### Added
 
 - Python: elementwise `maximum` and `minimum` with NumPy-style broadcasting.
@@ -13,6 +15,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   propagates (unlike `fmax`/`fmin`) and complex values are ordered
   lexicographically by real then imaginary part. Two scalar operands return a
   Python scalar; otherwise the result dtype is the usual promotion.
+- Python: `where(condition, x, y)` element-wise selection with three-way
+  broadcasting. Conditions may have any dtype and use Python truthiness
+  (complex values are truthy when either component is non-zero). The result
+  dtype promotes `x` and `y`; all-scalar input returns a Python scalar.
 
 ## [0.3.4] - 2026-11-08
 
@@ -183,7 +189,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - CI: Python jobs build/test on 3.12, 3.14, and 3.15, and the wheel test
   command now runs the full test suite.
 
-[Unreleased]: https://github.com/draconis-engineering/dracolix/compare/v0.3.4...HEAD
+[Unreleased]: https://github.com/draconis-engineering/dracolix/compare/v0.3.5...HEAD
+[0.3.5]: https://github.com/draconis-engineering/dracolix/releases/tag/v0.3.5
 [0.3.4]: https://github.com/draconis-engineering/dracolix/releases/tag/v0.3.4
 [0.3.3]: https://github.com/draconis-engineering/dracolix/releases/tag/v0.3.3
 [0.3.2]: https://github.com/draconis-engineering/dracolix/releases/tag/v0.3.2
