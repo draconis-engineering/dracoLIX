@@ -14,6 +14,7 @@
 #include "distributions.hpp"
 #include "dtype.hpp"
 #include "eigen.hpp"
+#include "gpu.hpp"
 #include "layout.hpp"
 #include "least_squares.hpp"
 #include "linalg.hpp"

@@ -1,6 +1,6 @@
 # DracoLIX Roadmap
 
-## Phase 0 — Foundation
+## [x] Phase 0 — Foundation
 
 Mål: Gjøre prosjektet til en ordentlig numerisk runtime.
 
@@ -8,31 +8,31 @@ Mål: Gjøre prosjektet til en ordentlig numerisk runtime.
 - [x] Definer core API
 - [x] Definer DType-systemet
 - [x] Implementer native scalar types
-  - [x] bool
-  - [x] signed integers (i32, i64)
-  - [ ] unsigned integers (reserved in enum, not yet dispatched)
-  - [x] f32
-  - [x] f64
+    - [x] bool
+    - [x] signed integers (i32, i64)
+    - [ ] unsigned integers (reserved in enum, not yet dispatched)
+    - [x] f32
+    - [x] f64
 - [x] Definer Array<T> / dynamisk array-representasjon
-  - [x] Shape + strides
-  - [x] Memory ownership
-  - [x] Contiguous memory
-  - [x] Views / slices
+    - [x] Shape + strides
+    - [x] Memory ownership
+    - [x] Contiguous memory
+    - [x] Views / slices
 - [x] Grunnleggende testing
 - [x] Benchmarking-infrastruktur (`benchmarks/bench_core.cpp` + `bench.hpp`, `compare_baseline.py`)
 
 Exit condition: Du kan lage og manipulere native DracoLIX-arrays uten NumPy.
 
-## Phase 1 — Core Array Engine
+## [x] Phase 1 — Core Array Engine
 
 Mål: Bygge selve datamotoren.
 
 - [x] Array
-  - [x] dtype
-  - [x] shape
-  - [x] strides
-  - [x] layout (RowMajor / ColMajor)
-  - [x] memory (std::vector-backed)
+    - [x] dtype
+    - [x] shape
+    - [x] strides
+    - [x] layout (RowMajor / ColMajor)
+    - [x] memory (std::vector-backed)
 - [x] Vector / Matrix / Tensor-basics
 - [x] Indexing
 - [x] Slicing
@@ -43,49 +43,49 @@ Mål: Bygge selve datamotoren.
 - [x] Type conversion (astype)
 - [x] Broadcasting — basic
 - [x] Element-wise operations
-  - [x] +
-  - [x] -
-  - [x] *
-  - [x] /
+    - [x] +
+    - [x] -
+    - [x] *
+    - [x] /
 - [x] Reductions
-  - [x] sum (global + axis)
-  - [x] min (global + axis)
-  - [x] max (global + axis)
-  - [x] mean (global + axis)
+    - [x] sum (global + axis)
+    - [x] min (global + axis)
+    - [x] max (global + axis)
+    - [x] mean (global + axis)
 
 Exit condition: DracoLIX kan fungere som en liten, selvstendig numerical array library.
 
-## Phase 2 — Linear Algebra
+## [x] Phase 2 — Linear Algebra
 
 Mål: Gjøre DracoLIX genuint nyttig for matematikk.
 
 - [x] Matrix multiplication — prototype
-  - [x] Optimalisert matrix multiplication (cache-friendly ikj ordering, scalar baseline)
-  - [x] Dot product
-  - [x] Vector norms
-  - [x] Transpose
-  - [x] Matrix-vector multiplication
-  - [x] Diagonal operations
-  - [x] Batched matmul/matvec/dot (atleast-3D)
-  - [x] LU decomposition (`core/include/dracolix/decomp.hpp:12`)
-  - [x] QR decomposition (`decomp::qr`, Modified Gram-Schmidt, `tests/cpp/test_decomp.cpp:22`)
-  - [x] Cholesky decomposition (`decomp::cholesky`, `solve_cholesky`)
-  - [x] Matrix inverse (`decomp::inverse`)
-  - [x] Determinant (`decomp::determinant`)
-  - [x] Rank (`decomp::rank`)
-  - [x] Linear system solving (`decomp::solve`, `solve_lu`, multi-RHS)
-  - [x] Eigenvalues / eigenvectors (`core/include/dracolix/eigen.hpp:11` Jacobi, symmetric `eig_sym`)
-  - [x] SVD (`core/include/dracolix/svd.hpp:11` via `A^T A` eigen, tall/wide)
-  - [x] Sparse
-    - [x] Sparse matrix representation (`core/include/dracolix/sparse.hpp:30` `CsrMatrix`/`CscMatrix`)
-    - [x] CSR
-    - [x] CSC
-    - [x] Sparse matrix multiplication (`CsrMatrix::matmul`)
-    - [x] Sparse linear solvers (`cg_solve` CG for SPD CSR)
+    - [x] Optimalisert matrix multiplication (cache-friendly ikj ordering, scalar baseline)
+    - [x] Dot product
+    - [x] Vector norms
+    - [x] Transpose
+    - [x] Matrix-vector multiplication
+    - [x] Diagonal operations
+    - [x] Batched matmul/matvec/dot (atleast-3D)
+    - [x] LU decomposition (`core/include/dracolix/decomp.hpp:12`)
+    - [x] QR decomposition (`decomp::qr`, Modified Gram-Schmidt, `tests/cpp/test_decomp.cpp:22`)
+    - [x] Cholesky decomposition (`decomp::cholesky`, `solve_cholesky`)
+    - [x] Matrix inverse (`decomp::inverse`)
+    - [x] Determinant (`decomp::determinant`)
+    - [x] Rank (`decomp::rank`)
+    - [x] Linear system solving (`decomp::solve`, `solve_lu`, multi-RHS)
+    - [x] Eigenvalues / eigenvectors (`core/include/dracolix/eigen.hpp:11` Jacobi, symmetric `eig_sym`)
+    - [x] SVD (`core/include/dracolix/svd.hpp:11` via `A^T A` eigen, tall/wide)
+    - [x] Sparse
+        - [x] Sparse matrix representation (`core/include/dracolix/sparse.hpp:30` `CsrMatrix`/`CscMatrix`)
+        - [x] CSR
+        - [x] CSC
+        - [x] Sparse matrix multiplication (`CsrMatrix::matmul`)
+        - [x] Sparse linear solvers (`cg_solve` CG for SPD CSR)
 
 Exit condition: DracoLIX kan håndtere reelle engineering/scientific-computing workloads.
 
-## Phase 3 — Performance Engine
+## [ ] Phase 3 — Performance Engine
 
 Her ville jeg begynt å bli litt gal på performance.
 
@@ -121,7 +121,7 @@ for relevante workloads.
 
 Exit condition: Du vet hvorfor DracoLIX er rask eller treg, i stedet for bare å anta at språket = raskt.
 
-## Phase 4 — Python API
+## [x] Phase 4 — Python API
 
 Nå kan du lage den Python-opplevelsen ordentlig.
 
@@ -145,17 +145,7 @@ C = A @ B
 - [x] Wheels (`.github/workflows/wheels.yml:1` cibuildwheel manylinux_2_28)
 - [x] Windows/Linux support (`ci.yml` `linux`/`windows msys2/UCRT64`/`python` green)
 
-Viktig mål:
-
-```
-Python
-   ↓
-nanobind
-   ↓
-DracoLIX
-```
-
-## Phase 5 — Julia
+## [o] Phase 5 — Julia
 
 Når core-en er stabil, blir Julia utrolig interessant.
 
@@ -176,9 +166,9 @@ Da begynner DracoLIX å bli ordentlig multi-language:
         ┌─────────┼─────────┐
         ▼         ▼         ▼
      Python     Julia      C++
-```     
+```
 
-## Phase 6 — Numerical Computing
+## [x] Phase 6 — Numerical Computing
 
 Nå beveger vi oss fra "linear algebra library" til SciComp.
 
@@ -200,9 +190,7 @@ Nå beveger vi oss fra "linear algebra library" til SciComp.
 - [x] Unified `solve_ivp` entry point (method dispatch + recorded time points)
 - [x] PDE abstractions (uniform grids; 1-D heat explicit/Crank-Nicolson, wave, upwind advection; 1-D and 2-D Poisson)
 
-Exit condition: DracoLIX kan brukes til å implementere faktiske matematiske modeller uten at du må finne frem NumPy/SciPy.
-
-## Phase 7 — Scientific Computing
+## [ ] Phase 7 — Scientific Computing
 
 Her begynner den opprinnelige visjonen å bli real.
 
@@ -231,7 +219,7 @@ Olympus
         DracoLIX
 ```
 
-## Phase 8 — HPC
+## [ ] Phase 8 — HPC
 
 Ikke start her før alt over fungerer.
 
@@ -246,30 +234,52 @@ Ikke start her før alt over fungerer.
 - [ ] Checkpointing
 - [ ] Large-scale simulation
 
-## Phase 9 — Accelerators
+## [ ] Phase 9 — Accelerators
 
-Først når CPU-backenden er solid:
+1. [ ] GPU Abstraction & Unified Execution Model
 
-- [ ] GPU abstraction
-- [ ] CUDA
-- [ ] ROCm
-- [ ] GPU memory management
-- [ ] GPU kernels
-- [ ] CPU/GPU dispatch
-- [ ] Unified execution model
+- [ ] Device-grensesnitt: Definer en abstrakt Device- eller Backend-klasse/trait som både CPU, CUDA og ROCm implementerer. Dette gjør at høyere lag i koden ikke trenger å bry seg om hvor beregningene skjer.
+- [ ] Tensor/Buffer-representasjon: Sørg for at datastrukturene dine holder styr på hvilken enhet (DeviceType::CPU, DeviceType::CUDA, osv.) dataene ligger på, og støtter eksplisitt kopiering mellom dem (to(device)).
+- [ ] Asynkron eksekvering: Både CUDA og ROCm opererer med strømmer (streams) og køer (queues). Bygg inn støtte for asynkrone kall og synkroniseringspunkter tidlig i abstraksjonslaget.
 
-## Phase 10 — CFD / Simulation
+2. [ ] GPU Memory Management
 
-Dette er moonshot-fasen.
+- [ ] Allokering og frigjøring: Implementer wrappers rundt cudaMalloc/cudaFree og hipMalloc/hipFree.
+- [ ] Memory Pooling (Caching Allocator): GPU-allokering er tregt. En enkel caching allocator som gjenbruker frigjorte minneblokker i stedet for å gi dem tilbake til driveren umiddelbart, vil gi massiv ytelsesgevinst.
+- [ ] Pinned Memory: Vurder støtte for page-locked (pinned) host-minne for raskere dataoverføring mellom CPU og GPU.
 
-- [ ] Mesh engine
-- [ ] Finite difference
-- [ ] Finite volume
-- [ ] Finite element research
-- [ ] Boundary conditions
-- [ ] Navier–Stokes
-- [ ] Fluid simulation
-- [ ] Parallel CFD
-- [ ] Visualization/export
+3. [ ] CUDA & ROCm (HIP)
 
-Da er DracoLIX plutselig ikke bare et bibliotek lenger, men en ordentlig SciComp-platform.
+- [WIP] Felles kodebase med HIP: Siden AMD sitt ROCm/HIP-API er designet for å ligne veldig på CUDA, kan du ofte skrive kjernene (kernels) én gang og kompilere dem til begge plattformer ved hjelp av makroer eller HIP-verktøy, i stedet for å vedlikeholde to helt separate kodebaser.
+
+4. [ ] GPU Kernels & CPU/GPU Dispatch
+
+- [ ] Dispatch-tabell: Utvid dispatch-mekanismen din slik at operasjoner rutes til riktig kjerne basert på hvilken enhet input-dataene befinner seg på.
+- [ ] Feilhåndtering: Husk å sjekke returverdier fra både kjerneoppsett (launch) og asynkron eksekvering (cudaGetLastError / hipGetLastError), da feil på GPU ofte dukker opp først ved neste synkronisering.
+- [ ] Verifisering: Bruk den solide CPU-backenden din til å kjøre automatiske tester som sammenligner output fra GPU-kernels mot CPU-resultater (med en liten toleranse for flyttallsavvik).
+
+## [ ] Phase 10 — CFD / Simulation
+
+1. [ ] Core Discretization & Solvers
+
+Before solving fluid equations, we need a spatial domain and numerical methods to approximate derivatives.
+
+- [ ] Mesh engine: Build or integrate a grid generator supporting structured Cartesian grids first, then expand to unstructured triangular/tetrahedral meshes (e.g., Delaunay triangulation).
+- [ ] Finite difference (FDM): Implement basic spatial and temporal discretization schemes (central difference, upwind schemes, and Runge-Kutta time stepping) on uniform grids to validate your math.
+- [ ] Finite volume (FVM): Transition to FVM for conservation laws, focusing on flux calculations across cell faces, gradient reconstruction, and slope limiters for stability.
+- [ ] Finite element research (FEM): Prototype weak-form formulations and basis functions (Galerkin method) to evaluate whether FEM offers advantages over FVM for complex geometries or multiphysics in your engine.
+
+2. [ ] Physics & Fluid Dynamics
+
+Once our numerical schemes can solve simple scalar transport (like heat diffusion or advection), introduce fluid mechanics.
+
+- [ ] Boundary conditions: Implement ghost cells or face-flux overrides for Dirichlet (fixed velocity/pressure), Neumann (zero-gradient outflow), no-slip walls, and periodic boundaries.
+- [ ] Navier–Stokes: Couple mass and momentum conservation using pressure-velocity coupling algorithms like SIMPLE, PISO, or fractional-step projection methods.
+- [ ] Fluid simulation: Combine the solver components into a complete transient simulation loop, starting with 2D incompressible laminar flows (such as lid-driven cavity or flow past a cylinder) before scaling to 3D or turbulence models.
+
+3. [ ] Performance & Output
+
+CFD is computationally expensive, making optimization and data inspection essential for usable simulations.
+
+- [ ] Parallel CFD: Partition the mesh into subdomains and parallelize solver loops using shared-memory threading (OpenMP/Rust Rayon), GPU compute shaders (CUDA/Vulkan/WGPU), or distributed MPI.
+- [ ] Visualization/export: Export field data (velocity vectors, pressure scalars, vorticity) to standard formats like VTK/VTU for ParaView, or build a real-time renderer using streamlines, vector glyphs, and color maps.

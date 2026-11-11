@@ -27,10 +27,7 @@ namespace dracolix::pde {
 // ---------------------------------------------------------------------------
 // Grids and boundary conditions
 // ---------------------------------------------------------------------------
-enum class BC {
-	Dirichlet,
-	Periodic
-};
+enum class BC { Dirichlet, Periodic };
 
 struct Grid1D {
 	double x0 = 0.0;
@@ -182,8 +179,7 @@ inline PdeSolution1D heat_1d_cn(const Grid1D &g, const Array<double> &u0,
 	if (alpha < 0)
 		throw std::invalid_argument("heat_1d_cn: alpha must be >= 0");
 	if (dt <= 0 || t_end < 0)
-		throw std::invalid_argument(
-			"heat_1d_cn: need dt > 0 and t_end >= 0");
+		throw std::invalid_argument("heat_1d_cn: need dt > 0 and t_end >= 0");
 	const size_t n = g.n;
 	const double dx = g.dx();
 	PdeSolution1D sol;
@@ -197,12 +193,11 @@ inline PdeSolution1D heat_1d_cn(const Grid1D &g, const Array<double> &u0,
 	auto step = [&](double h) {
 		const double r = alpha * h / (dx * dx);
 		const size_t m = n - 2; // interior unknowns
-		std::vector<double> a(m, -0.5 * r), b(m, 1.0 + r),
-			c(m, -0.5 * r), d(m, 0.0);
+		std::vector<double> a(m, -0.5 * r), b(m, 1.0 + r), c(m, -0.5 * r),
+			d(m, 0.0);
 		for (size_t k = 0; k < m; ++k) {
 			const size_t i = k + 1;
-			d[k] = 0.5 * r * u[i - 1] + (1.0 - r) * u[i] +
-				   0.5 * r * u[i + 1];
+			d[k] = 0.5 * r * u[i - 1] + (1.0 - r) * u[i] + 0.5 * r * u[i + 1];
 		}
 		// Move known boundary contributions to the RHS.
 		d.front() += 0.5 * r * left;
@@ -279,8 +274,8 @@ inline PdeSolution1D wave_1d(const Grid1D &g, const Array<double> &u0,
 		Array<double> un(n);
 		un[0] = un[n - 1] = 0.0;
 		for (size_t i = 1; i + 1 < n; ++i)
-			un[i] = 2.0 * u[i] - um[i] +
-					r * r * (u[i + 1] - 2.0 * u[i] + u[i - 1]);
+			un[i] =
+				2.0 * u[i] - um[i] + r * r * (u[i + 1] - 2.0 * u[i] + u[i - 1]);
 		um = std::move(u);
 		u = std::move(un);
 		t += h;
@@ -369,8 +364,8 @@ inline Array<double> poisson_1d(const Grid1D &g, const Array<double> &f,
 		d[k] = dx2 * f[k + 1];
 	d.front() += left;
 	d.back() += right;
-	auto x = detail::solve_tridiagonal(std::move(a), std::move(b),
-									   std::move(c), std::move(d));
+	auto x = detail::solve_tridiagonal(std::move(a), std::move(b), std::move(c),
+									   std::move(d));
 	Array<double> u(n);
 	u[0] = left;
 	u[n - 1] = right;
@@ -391,8 +386,7 @@ inline Array<double> poisson_2d(const Grid2D &g, const Array<double> &f,
 								double right = 0.0, double bottom = 0.0,
 								double top = 0.0) {
 	if (f.ndim() != 2 || f.shape()[0] != g.nx || f.shape()[1] != g.ny)
-		throw std::invalid_argument(
-			"poisson_2d: f must have shape (nx, ny)");
+		throw std::invalid_argument("poisson_2d: f must have shape (nx, ny)");
 	if (tol <= 0 || max_iter <= 0 || omega <= 0 || omega >= 2)
 		throw std::invalid_argument(
 			"poisson_2d: require tol>0, max_iter>0, 0<omega<2");

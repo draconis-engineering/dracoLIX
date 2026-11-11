@@ -21,8 +21,7 @@ inline constexpr double pi = 3.141592653589793238462643383279502884;
 inline constexpr double tau = 2.0 * pi;
 inline constexpr double euler = 2.718281828459045235360287471352662498;
 inline constexpr double sqrt2 = 1.414213562373095048801688724209698079;
-inline constexpr double golden_ratio =
-	1.618033988749894848204586834365638118;
+inline constexpr double golden_ratio = 1.618033988749894848204586834365638118;
 
 // ---------------------------------------------------------------------------
 // Physical constants
@@ -51,20 +50,20 @@ inline constexpr auto molar_gas_constant =
 inline constexpr auto R = molar_gas_constant;
 
 // Electromagnetism
-inline constexpr auto vacuum_permeability = 1.25663706212e-6 * units::N /
-											 (units::A * units::A);
+inline constexpr auto vacuum_permeability =
+	1.25663706212e-6 * units::N / (units::A * units::A);
 inline constexpr auto mu_0 = vacuum_permeability;
-inline constexpr auto vacuum_permittivity = 8.8541878128e-12 * units::F /
-											 units::m;
+inline constexpr auto vacuum_permittivity =
+	8.8541878128e-12 * units::F / units::m;
 inline constexpr auto epsilon_0 = vacuum_permittivity;
 
 // Gravitation and mechanics
 inline constexpr auto gravitational_constant =
-	6.67430e-11 * units::m * units::m * units::m / (units::kg * units::s *
-													 units::s);
+	6.67430e-11 * units::m * units::m * units::m /
+	(units::kg * units::s * units::s);
 inline constexpr auto G = gravitational_constant;
-inline constexpr auto standard_gravity = 9.80665 * units::m /
-										  (units::s * units::s);
+inline constexpr auto standard_gravity =
+	9.80665 * units::m / (units::s * units::s);
 inline constexpr auto g_0 = standard_gravity;
 
 // Particle masses (CODATA 2018)
@@ -79,8 +78,8 @@ inline constexpr auto fine_structure_constant = 7.2973525693e-3;
 inline constexpr auto alpha = fine_structure_constant;
 inline constexpr auto rydberg_constant = 10973731.568160 / units::m;
 inline constexpr auto stefan_boltzmann_constant =
-	5.670374419e-8 * units::W / (units::m * units::m * units::K * units::K *
-								   units::K * units::K);
+	5.670374419e-8 * units::W /
+	(units::m * units::m * units::K * units::K * units::K * units::K);
 inline constexpr auto sigma = stefan_boltzmann_constant;
 
 // Convenience (non-SI but universally used)

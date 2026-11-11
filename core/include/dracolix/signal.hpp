@@ -10,6 +10,7 @@
 // Licensed under GPL-3.0+
 
 #include "array.hpp"
+#include "constants.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -26,8 +27,6 @@ using Complex = std::complex<double>;
 
 namespace detail {
 
-inline constexpr double kPi = 3.141592653589793238462643383279502884;
-
 inline void require_1d(const Array<double> &a, const char *fn) {
 	if (a.ndim() != 1)
 		throw std::invalid_argument(std::string(fn) + ": requires 1-D input");
@@ -40,9 +39,7 @@ inline void require_1d(const Array<Complex> &a, const char *fn) {
 
 } // namespace detail
 
-inline bool is_power_of_two(size_t n) {
-	return n != 0 && (n & (n - 1)) == 0;
-}
+inline bool is_power_of_two(size_t n) { return n != 0 && (n & (n - 1)) == 0; }
 
 inline size_t next_power_of_two(size_t n) {
 	if (n <= 1)
@@ -63,9 +60,9 @@ inline Array<Complex> dft(const Array<Complex> &x) {
 	for (size_t k = 0; k < n; ++k) {
 		Complex sum{};
 		for (size_t j = 0; j < n; ++j) {
-			const double angle =
-				-2.0 * detail::kPi * static_cast<double>(k * j) /
-				static_cast<double>(n);
+			const double angle = -2.0 * constants::pi *
+								 static_cast<double>(k * j) /
+								 static_cast<double>(n);
 			sum += x[j] * Complex(std::cos(angle), std::sin(angle));
 		}
 		out[k] = sum;
@@ -80,9 +77,9 @@ inline Array<Complex> dft(const Array<double> &x) {
 	for (size_t k = 0; k < n; ++k) {
 		Complex sum{};
 		for (size_t j = 0; j < n; ++j) {
-			const double angle =
-				-2.0 * detail::kPi * static_cast<double>(k * j) /
-				static_cast<double>(n);
+			const double angle = -2.0 * constants::pi *
+								 static_cast<double>(k * j) /
+								 static_cast<double>(n);
 			sum += x[j] * Complex(std::cos(angle), std::sin(angle));
 		}
 		out[k] = sum;
@@ -99,9 +96,9 @@ inline Array<Complex> idft(const Array<Complex> &X) {
 	for (size_t k = 0; k < n; ++k) {
 		Complex sum{};
 		for (size_t j = 0; j < n; ++j) {
-			const double angle =
-				2.0 * detail::kPi * static_cast<double>(k * j) /
-				static_cast<double>(n);
+			const double angle = 2.0 * constants::pi *
+								 static_cast<double>(k * j) /
+								 static_cast<double>(n);
 			sum += X[j] * Complex(std::cos(angle), std::sin(angle));
 		}
 		out[k] = sum / static_cast<double>(n);
@@ -133,7 +130,7 @@ inline Array<Complex> fft(Array<Complex> x) {
 	}
 
 	for (size_t len = 2; len <= n; len <<= 1) {
-		const double angle = -2.0 * detail::kPi / static_cast<double>(len);
+		const double angle = -2.0 * constants::pi / static_cast<double>(len);
 		const Complex wlen(std::cos(angle), std::sin(angle));
 		for (size_t i = 0; i < n; i += len) {
 			Complex w(1.0, 0.0);
@@ -280,7 +277,7 @@ inline Array<double> window(Window w, size_t n) {
 	}
 	const double denom = static_cast<double>(n - 1);
 	for (size_t i = 0; i < n; ++i) {
-		const double x = 2.0 * detail::kPi * static_cast<double>(i) / denom;
+		const double x = 2.0 * constants::pi * static_cast<double>(i) / denom;
 		switch (w) {
 		case Window::Hann:
 			out[i] = 0.5 - 0.5 * std::cos(x);
@@ -298,9 +295,7 @@ inline Array<double> window(Window w, size_t n) {
 
 inline Array<double> hann(size_t n) { return window(Window::Hann, n); }
 inline Array<double> hamming(size_t n) { return window(Window::Hamming, n); }
-inline Array<double> blackman(size_t n) {
-	return window(Window::Blackman, n);
-}
+inline Array<double> blackman(size_t n) { return window(Window::Blackman, n); }
 
 // ---------------------------------------------------------------------------
 // Frequency axis and power spectrum
@@ -314,8 +309,7 @@ inline Array<double> frequencies(size_t n, double sample_rate) {
 	const size_t m = n / 2 + 1;
 	Array<double> out(m);
 	for (size_t k = 0; k < m; ++k)
-		out[k] = static_cast<double>(k) * sample_rate /
-				 static_cast<double>(n);
+		out[k] = static_cast<double>(k) * sample_rate / static_cast<double>(n);
 	return out;
 }
 

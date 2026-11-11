@@ -34,7 +34,8 @@ struct OptimizeResult {
 };
 
 using Cost = std::function<double(const std::vector<double> &)>;
-using Gradient = std::function<std::vector<double>(const std::vector<double> &)>;
+using Gradient =
+	std::function<std::vector<double>(const std::vector<double> &)>;
 
 namespace detail {
 
@@ -57,8 +58,7 @@ inline double norm_inf(const std::vector<double> &a) {
 }
 
 inline std::vector<double> add_scaled(const std::vector<double> &a,
-									  const std::vector<double> &b,
-									  double s) {
+									  const std::vector<double> &b, double s) {
 	std::vector<double> r(a.size());
 	for (size_t i = 0; i < a.size(); ++i)
 		r[i] = a[i] + s * b[i];
@@ -96,10 +96,9 @@ inline std::vector<double> numerical_gradient(const Cost &f,
 }
 
 // Golden-section search for a unimodal function on [a, b].
-inline ScalarOptimizeResult golden_section(const std::function<double(double)> &f,
-										   double a, double b,
-										   double tol = 1e-8,
-										   int max_iter = 1000) {
+inline ScalarOptimizeResult
+golden_section(const std::function<double(double)> &f, double a, double b,
+			   double tol = 1e-8, int max_iter = 1000) {
 	if (!(b > a))
 		throw std::invalid_argument("golden_section: need b > a");
 	if (tol <= 0)
@@ -231,8 +230,7 @@ inline OptimizeResult nelder_mead(const Cost &f, std::vector<double> x0,
 				std::vector<double> xc(n);
 				for (size_t k = 0; k < n; ++k)
 					xc[k] =
-						centroid[k] +
-						rho * (simplex[worst][k] - centroid[k]);
+						centroid[k] + rho * (simplex[worst][k] - centroid[k]);
 				const double fc = f(xc);
 				if (fc < fs[worst]) {
 					simplex[worst] = std::move(xc);
@@ -347,9 +345,8 @@ inline OptimizeResult bfgs(const Cost &f, const Gradient &grad,
 			const double coeff = (ys + yHy) / (ys * ys);
 			for (size_t i = 0; i < n; ++i)
 				for (size_t j = 0; j < n; ++j)
-					H[i * n + j] +=
-						coeff * s[i] * s[j] -
-						(Hy[i] * s[j] + s[i] * Hy[j]) / ys;
+					H[i * n + j] += coeff * s[i] * s[j] -
+									(Hy[i] * s[j] + s[i] * Hy[j]) / ys;
 		}
 		x = std::move(xn);
 		fx = fn;

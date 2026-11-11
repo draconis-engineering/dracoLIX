@@ -178,7 +178,8 @@ inline State solve_implicit(RHS f, const Jacobian &jac, double t, State y,
 				trial[i] = y[i] + lambda * delta[i];
 			State ft = f(t, trial);
 			if (ft.size() != n)
-				throw std::runtime_error("ODE RHS returned a wrong-sized state");
+				throw std::runtime_error(
+					"ODE RHS returned a wrong-sized state");
 			State Gt(n);
 			for (size_t i = 0; i < n; ++i)
 				Gt[i] = trial[i] - a * yn[i] - b * ynm1[i] - c * h * ft[i];
@@ -302,8 +303,8 @@ inline std::vector<State> backward_euler(RHS f, double t0, State y0, double t1,
 		double h = std::min(dt, t1 - t);
 		State yn = y;
 		// y = yn + h f(t+h, y)  (a=1, b=0, c=1)
-		y = detail::solve_implicit(f, jac, t + h, y, yn, yn, 1.0, 0.0, 1.0,
-								   h, opts);
+		y = detail::solve_implicit(f, jac, t + h, y, yn, yn, 1.0, 0.0, 1.0, h,
+								   opts);
 		t += h;
 		traj.push_back(y);
 	}
@@ -314,8 +315,8 @@ inline std::vector<State> backward_euler(RHS f, double t0, State y0, double t1,
 // Euler; after that the two-step formula
 //   y_{n+1} = a y_n + b y_{n-1} + c h f(t_{n+1}, y_{n+1})
 // is used, with coefficients depending on the step-size ratio.
-inline std::vector<State> bdf2(RHS f, double t0, State y0, double t1,
-							   double dt, const Jacobian &jac = Jacobian{},
+inline std::vector<State> bdf2(RHS f, double t0, State y0, double t1, double dt,
+							   const Jacobian &jac = Jacobian{},
 							   const NewtonOptions &opts = {}) {
 	if (dt <= 0)
 		throw std::invalid_argument("dt>0");
@@ -331,8 +332,8 @@ inline std::vector<State> bdf2(RHS f, double t0, State y0, double t1,
 		double h = std::min(dt, t1 - t);
 		State ynew;
 		if (first) {
-			ynew = detail::solve_implicit(f, jac, t + h, yn, yn, ynm1, 1.0,
-										  0.0, 1.0, h, opts);
+			ynew = detail::solve_implicit(f, jac, t + h, yn, yn, ynm1, 1.0, 0.0,
+										  1.0, h, opts);
 			first = false;
 		} else {
 			const double w = h / hprev;
@@ -364,9 +365,8 @@ struct OdeSolution {
 
 // Adaptive Runge Kutta 45 with step doubling (embedded error estimate). This
 // variant also records the accepted time points.
-inline OdeSolution adaptive_rk45_solution(RHS f, double t0, State y0,
-										  double t1, double tol = 1e-6,
-										  double h0 = 0.1) {
+inline OdeSolution adaptive_rk45_solution(RHS f, double t0, State y0, double t1,
+										  double tol = 1e-6, double h0 = 0.1) {
 	if (h0 <= 0)
 		throw std::invalid_argument("h0>0");
 	OdeSolution sol;
@@ -439,13 +439,7 @@ inline std::vector<State> adaptive_rk45(RHS f, double t0, State y0, double t1,
 // ---------------------------------------------------------------------------
 // Unified entry point
 // ---------------------------------------------------------------------------
-enum class Method {
-	Euler,
-	RK4,
-	AdaptiveRK45,
-	BackwardEuler,
-	BDF2
-};
+enum class Method { Euler, RK4, AdaptiveRK45, BackwardEuler, BDF2 };
 
 inline const char *method_name(Method m) {
 	switch (m) {

@@ -87,10 +87,9 @@ struct Normal {
 
 	Array<double> sample(const std::vector<size_t> &shape,
 						 random::Rng &rng) const {
-		return detail::sample_array(*this, shape, rng,
-									[&](random::Rng &r) {
-										return r.normal(mu, sigma);
-									});
+		return detail::sample_array(*this, shape, rng, [&](random::Rng &r) {
+			return r.normal(mu, sigma);
+		});
 	}
 };
 
@@ -109,7 +108,9 @@ struct Uniform {
 	double mean() const { return 0.5 * (a + b); }
 	double variance() const { return (b - a) * (b - a) / 12.0; }
 
-	double pdf(double x) const { return (x < a || x > b) ? 0.0 : 1.0 / (b - a); }
+	double pdf(double x) const {
+		return (x < a || x > b) ? 0.0 : 1.0 / (b - a);
+	}
 
 	double cdf(double x) const {
 		if (x <= a)
@@ -121,8 +122,7 @@ struct Uniform {
 
 	double quantile(double p) const {
 		if (p < 0.0 || p > 1.0)
-			throw std::invalid_argument(
-				"Uniform::quantile: need 0 <= p <= 1");
+			throw std::invalid_argument("Uniform::quantile: need 0 <= p <= 1");
 		return a + p * (b - a);
 	}
 
@@ -130,10 +130,8 @@ struct Uniform {
 
 	Array<double> sample(const std::vector<size_t> &shape,
 						 random::Rng &rng) const {
-		return detail::sample_array(*this, shape, rng,
-									[&](random::Rng &r) {
-										return r.uniform(a, b);
-									});
+		return detail::sample_array(
+			*this, shape, rng, [&](random::Rng &r) { return r.uniform(a, b); });
 	}
 };
 
@@ -155,7 +153,9 @@ struct Exponential {
 		return x < 0.0 ? 0.0 : rate * std::exp(-rate * x);
 	}
 
-	double cdf(double x) const { return x <= 0.0 ? 0.0 : 1.0 - std::exp(-rate * x); }
+	double cdf(double x) const {
+		return x <= 0.0 ? 0.0 : 1.0 - std::exp(-rate * x);
+	}
 
 	double quantile(double p) const {
 		if (p < 0.0 || p > 1.0)
@@ -170,10 +170,9 @@ struct Exponential {
 
 	Array<double> sample(const std::vector<size_t> &shape,
 						 random::Rng &rng) const {
-		return detail::sample_array(*this, shape, rng,
-									[&](random::Rng &r) {
-										return r.exponential(rate);
-									});
+		return detail::sample_array(*this, shape, rng, [&](random::Rng &r) {
+			return r.exponential(rate);
+		});
 	}
 };
 
@@ -214,14 +213,15 @@ struct Bernoulli {
 		return q <= 1.0 - p ? 0 : 1;
 	}
 
-	double sample(random::Rng &rng) const { return rng.bernoulli(p) ? 1.0 : 0.0; }
+	double sample(random::Rng &rng) const {
+		return rng.bernoulli(p) ? 1.0 : 0.0;
+	}
 
 	Array<double> sample(const std::vector<size_t> &shape,
 						 random::Rng &rng) const {
-		return detail::sample_array(*this, shape, rng,
-									[&](random::Rng &r) {
-										return r.bernoulli(p) ? 1.0 : 0.0;
-									});
+		return detail::sample_array(*this, shape, rng, [&](random::Rng &r) {
+			return r.bernoulli(p) ? 1.0 : 0.0;
+		});
 	}
 };
 
@@ -261,8 +261,7 @@ struct Poisson {
 
 	int64_t quantile(double q) const {
 		if (q < 0.0 || q > 1.0)
-			throw std::invalid_argument(
-				"Poisson::quantile: need 0 <= q <= 1");
+			throw std::invalid_argument("Poisson::quantile: need 0 <= q <= 1");
 		if (q == 0.0)
 			return 0;
 		double sum = std::exp(-lambda);
@@ -282,11 +281,9 @@ struct Poisson {
 
 	Array<double> sample(const std::vector<size_t> &shape,
 						 random::Rng &rng) const {
-		return detail::sample_array(*this, shape, rng,
-									[&](random::Rng &r) {
-										return static_cast<double>(
-											r.poisson(lambda));
-									});
+		return detail::sample_array(*this, shape, rng, [&](random::Rng &r) {
+			return static_cast<double>(r.poisson(lambda));
+		});
 	}
 };
 
