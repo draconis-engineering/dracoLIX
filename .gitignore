@@ -11,6 +11,10 @@
 *.pyc
 .DS_Store
 
+# Avoid CUDA/HIP files for now until NVCC compiler infra is in place
+*.cu
+*.cuh
+
 # Profiler captures from the GEMM performance work (docs/perf-report-02102026.md).
 # Hundreds of MB; regenerate with `perf record` rather than committing.
 /data/*.data
