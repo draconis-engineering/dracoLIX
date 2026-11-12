@@ -125,13 +125,14 @@ NumPy-inspired shape manipulation that is currently missing or subtly wrong.
 
 ---
 
-## v0.3.6 (Planned)
+## v0.3.6 (In progress)
 
 ### Goals
 
 Support zero-size (empty) arrays end-to-end. Today the core builds them, but
 the Python layer rejects them at construction/indexing, which blocks
-masking/filtering use cases and NumPy empty identities.
+masking/filtering use cases and NumPy empty identities. Also ship the
+Windows/MSVC GEMM fix found while benchmarking 0.3.5.
 
 ### In scope
 
@@ -147,6 +148,14 @@ masking/filtering use cases and NumPy empty identities.
   `ValueError` (we keep explicit errors instead of NumPy's NaN + warning).
 - Axis reductions over a zero-length reduced axis: `sum -> zeros`,
   `prod -> ones`, `any -> False`, `all -> True`; stats raise.
+- If the *output* is empty because an outer dimension is zero (for example
+  `zeros((2, 0)).min(axis=0)`), return an empty result instead of raising;
+  only a zero-length *reduced* axis raises (matching NumPy).
+- Broadcasting with a zero dimension follows NumPy (`(0, 3) + (1, 3) ->
+  (0, 3)`); `broadcast_shape` must not widen `0` to `1`.
+- GEMM: build the AVX2/AVX-512 microkernels on MSVC via per-ISA translation
+  units (`/arch:AVX2`, `/arch:AVX512`), require FMA in dispatch, and cover the
+  blocked/tile edge shapes from Python so the wheel build exercises them.
 
 ### Out of scope
 
@@ -159,21 +168,31 @@ masking/filtering use cases and NumPy empty identities.
   of dimensions and may be `0`.
 - **D2** - `array([])` infers `f64` (same as an empty Python float list would
   in NumPy) and produces shape `(0,)`.
-- **D3** - Empty reductions use the identities above; statistical reductions
-  keep raising `ValueError` for a zero-length reduced axis.
+- **D3** - Empty reductions use the identities above. `min`/`max`/`argmin`/
+  `argmax` and statistical reductions raise `ValueError` only when the reduced
+  axis itself has length 0; zero-size outer dimensions yield empty outputs.
+- **D4** - MSVC has no per-function `target` attributes, so `gemm_micro_avx2.cpp`
+  and `gemm_micro_avx512.cpp` are compiled once per ISA and left in the same
+  DLL. The runtime CPUID check in `dispatch.hpp` still gates every call, so the
+  wheel stays portable while no longer silently falling back to scalar.
 
 ### Testing plan
 
-- Construct/extend/tolist/buffer round-trips for shapes `(0,)`, `(2, 0)`.
-- Every reduction on empty arrays and zero-length axes.
-- Slicing to empty and back (where supported).
+- Construct/extend/tolist/buffer round-trips for shapes `(0,)`, `(2, 0)`,
+  `(0, 3)`.
+- Every reduction on empty arrays and zero-length axes, including empty
+  outputs from a zero-size outer dimension.
+- Slicing to empty and back, plus zero-dimension broadcasting.
 - `numpy` cross-checks for dtypes and identities.
+- `test_matmul_blocked_edge_shapes` crosses the 256 block and microkernel tile
+  boundaries for `f64`/`f32`; cibuildwheel runs it against the MSVC wheel.
 
 ### Release checklist
 
-- [ ] Binding guards removed, invariants audited
-- [ ] Core/binding empty handling
-- [ ] Tests added and green
+- [x] Binding guards removed, invariants audited
+- [x] Core/binding empty handling
+- [x] Tests added and green
+- [x] MSVC AVX2/AVX-512 GEMM fix + edge-shape coverage
 - [ ] CHANGELOG + version bump
 
 ---

@@ -10,6 +10,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Python: zero-size arrays are supported end-to-end. `array([])` (inferred
+  `f64`), nested empty lists, and `zeros`/`ones`/`empty`/`full` with a zero
+  dimension now construct; zero-length slices, `tolist()`, buffer import and
+  PEP 3118 export all work. Reductions follow NumPy's empty identities
+  (`sum -> 0`, `prod -> 1`, `any -> False`, `all -> True`), while
+  `min`/`max`/`argmin`/`argmax` and `mean`/`std`/`var` raise `ValueError`
+  for a zero-length reduced axis. Reductions whose output is empty only
+  because an outer dimension is zero return an empty array, and broadcasting
+  now keeps a zero dimension instead of widening it to `1`.
+
+### Fixed
+
+- Core: GEMM on Windows/MSVC now uses the AVX2/AVX-512 microkernels instead of
+  silently running the scalar reference. MSVC lacks per-function `target`
+  attributes, so the kernels are built in per-ISA translation units and gated by
+  the runtime CPUID check (FMA is now required for both paths). On a 4-core
+  Zen 3 laptop, `3000x3000` f64 matmul drops from ~18.9 s to ~1.0 s.
+- Python: added `test_matmul_blocked_edge_shapes` so the blocked/tile edge
+  paths, including the MSVC-compiled kernels, are exercised by wheel tests.
+
 ## [0.3.5] - 2026-11-09
 
 ### Added

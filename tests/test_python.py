@@ -101,6 +101,172 @@ def test_constructors():
     assert dlx.arange(3).dtype is dlx.i64
 
 
+def test_empty_construction():
+    a = dlx.array([])
+    assert a.shape == (0,)
+    assert a.ndim == 1
+    assert a.size == 0
+    assert a.dtype is dlx.f64  # NumPy: array([]) defaults to float64
+    assert a.tolist() == []
+    assert len(a) == 0
+    assert repr(a) == "array([], dtype=f64)"
+
+    b = dlx.array([[], []])
+    assert b.shape == (2, 0)
+    assert b.dtype is dlx.f64
+    assert b.tolist() == [[], []]
+    assert dlx.array([[]]).shape == (1, 0)
+
+    c = dlx.array([], dtype=dlx.i32)
+    assert c.dtype is dlx.i32
+    assert c.shape == (0,)
+
+    assert dlx.zeros(0).shape == (0,)
+    assert dlx.zeros((2, 0), dtype=dlx.i32).shape == (2, 0)
+    assert dlx.ones(0).shape == (0,)
+    assert dlx.ones((0, 3)).shape == (0, 3)
+    assert dlx.empty(0).size == 0
+    assert dlx.full((0,), 7).size == 0
+    assert dlx.full(0, 7).shape == (0,)
+    assert dlx.arange(0).shape == (0,)
+    assert dlx.linspace(0, 1, 0).shape == (0,)
+
+    with pytest.raises(ValueError):
+        dlx.zeros(-1)
+    with pytest.raises(ValueError):
+        dlx.zeros((2, -1))
+
+
+def test_empty_slicing():
+    a = dlx.arange(5)
+    e = a[2:2]
+    assert e.shape == (0,)
+    assert e.dtype is a.dtype
+    assert e.tolist() == []
+
+    b = dlx.array([[0, 1, 2], [3, 4, 5]], dtype=dlx.i64)
+    assert b[0:0].shape == (0, 3)
+    assert b[:, 1:1].shape == (2, 0)
+    assert b[:, 1:1].tolist() == [[], []]
+    assert b[1, 1:1].shape == (0,)
+    assert b[0:0, 0:0].shape == (0, 0)
+
+    c = dlx.zeros((0, 3))
+    assert c[:].shape == (0, 3)
+    assert c[:, 0:2].shape == (0, 2)
+    assert c[:, 0:2].tolist() == []
+
+
+def test_empty_reductions():
+    e = dlx.array([])
+    assert e.sum() == 0.0
+    assert e.prod() == 1.0
+    assert e.any() is False
+    assert e.all() is True
+    for fn in (e.min, e.max, e.mean, e.std, e.var, e.argmin, e.argmax):
+        with pytest.raises(ValueError):
+            fn()
+
+    be = dlx.array([], dtype=dlx.bool_)
+    assert be.sum() == 0
+    assert be.prod() == 1
+    assert be.any() is False
+    assert be.all() is True
+    with pytest.raises(ValueError):
+        be.min()
+    with pytest.raises(TypeError, match="empty"):
+        bool(be)
+
+    r = dlx.zeros((2, 0))
+    assert r.sum(axis=0).shape == (0,)
+    assert r.prod(axis=0).shape == (0,)
+    assert r.any(axis=0).shape == (0,)
+    assert r.all(axis=0).shape == (0,)
+    assert r.mean(axis=0).shape == (0,)
+    assert r.var(axis=0).shape == (0,)
+    assert r.min(axis=0).shape == (0,)
+    assert r.max(axis=0).shape == (0,)
+    assert r.argmin(axis=0).shape == (0,)
+    assert r.argmax(axis=0).shape == (0,)
+    for fn in (r.min, r.max, r.argmin, r.argmax, r.mean, r.var):
+        with pytest.raises(ValueError):
+            fn(axis=1)
+
+    z = dlx.zeros((0, 3))
+    assert z.sum(axis=0).tolist() == [0.0, 0.0, 0.0]
+    assert z.prod(axis=0).tolist() == [1.0, 1.0, 1.0]
+    assert z.any(axis=0).tolist() == [False, False, False]
+    assert z.all(axis=0).tolist() == [True, True, True]
+    assert z.sum(axis=1).shape == (0,)
+    assert z.mean(axis=1).shape == (0,)
+    assert z.var(axis=1).shape == (0,)
+    assert z.min(axis=1).shape == (0,)
+    assert z.max(axis=1).shape == (0,)
+    assert z.argmin(axis=1).shape == (0,)
+    assert z.argmax(axis=1).shape == (0,)
+    with pytest.raises(ValueError):
+        z.mean(axis=0)
+    with pytest.raises(ValueError):
+        z.var(axis=0)
+    for fn in (z.min, z.max, z.argmin, z.argmax):
+        with pytest.raises(ValueError):
+            fn(axis=0)
+
+
+def test_empty_broadcast_and_elementwise():
+    a = dlx.zeros((0, 3))
+    b = dlx.ones((1, 3))
+    assert (a + b).shape == (0, 3)
+    assert (a + b).tolist() == []
+    assert (b + a).shape == (0, 3)
+    assert (a * b).shape == (0, 3)
+    assert (a + 1.0).shape == (0, 3)
+
+    c = dlx.zeros((0, 1)) + dlx.ones((1, 4))
+    assert c.shape == (0, 4)
+    assert c.tolist() == []
+
+    m = dlx.maximum(dlx.zeros(0), dlx.array([1.0]))
+    assert m.shape == (0,)
+    w = dlx.where(dlx.zeros(0, dtype=dlx.bool_), dlx.zeros(0), dlx.zeros(1))
+    assert w.shape == (0,)
+
+    assert a.astype(dlx.i32).shape == (0, 3)
+    assert a.copy().shape == (0, 3)
+
+    with pytest.raises(ValueError):
+        _ = dlx.zeros(0) + dlx.ones(2)
+
+
+def test_empty_buffer_interop():
+    np = pytest.importorskip("numpy")
+
+    a = dlx.zeros(0)
+    mv = memoryview(a)
+    assert mv.shape == (0,)
+    assert mv.nbytes == 0
+    assert bytes(mv) == b""
+    assert np.asarray(a).shape == (0,)
+
+    mv2 = memoryview(dlx.zeros((2, 0)))
+    assert mv2.shape == (2, 0)
+    assert mv2.nbytes == 0
+    assert np.asarray(dlx.zeros((0, 3))).shape == (0, 3)
+    assert dlx.array(np.zeros((0, 3))).shape == (0, 3)
+
+    src = np.zeros((2, 0), dtype=np.float32)
+    b = dlx.array(src)
+    assert b.shape == (2, 0)
+    assert b.dtype is dlx.f32
+    back = np.asarray(b)
+    assert back.shape == (2, 0)
+    assert back.dtype == np.float32
+
+    c = dlx.array(np.zeros(0, dtype=np.int16))
+    assert c.shape == (0,)
+    assert c.dtype is dlx.i16
+
+
 # ---------------------------------------------------------------------------
 # buffer protocol: export (memoryview / numpy)
 # ---------------------------------------------------------------------------
@@ -245,6 +411,30 @@ def test_matmul_and_dot():
         _ = dlx.array([True, False]) @ dlx.array([True, False])
 
 
+def test_matmul_blocked_edge_shapes():
+    # Straddle the 256-row/column cache blocks, the vector microkernel tiles and
+    # their masked edge paths. test_matmul_and_dot's 2x2 case never reaches the
+    # packed/blocked kernels, so this is what exercises the AVX2/AVX-512 code --
+    # including in the Windows wheel build, where those kernels are compiled
+    # with /arch flags rather than target attributes.
+    np = pytest.importorskip("numpy")
+    cases = [
+        (np.float64, (257, 263), (263, 259)),
+        (np.float32, (129, 257), (257, 131)),
+    ]
+    for dtype, ashape, bshape in cases:
+        a = (np.arange(int(np.prod(ashape)), dtype=np.float64) % 7.0).astype(dtype)
+        b = (np.arange(int(np.prod(bshape)), dtype=np.float64) % 5.0).astype(dtype)
+        a = a.reshape(ashape)
+        b = b.reshape(bshape)
+        got = np.asarray(dlx.array(a) @ dlx.array(b))
+        want = a @ b
+        assert got.dtype == want.dtype
+        atol = 1e-3 if dtype is np.float32 else 1e-9
+        rtol = 2e-5 if dtype is np.float32 else 1e-12
+        np.testing.assert_allclose(got, want, rtol=rtol, atol=atol)
+
+
 # ---------------------------------------------------------------------------
 # comparisons
 # ---------------------------------------------------------------------------
@@ -375,9 +565,7 @@ def test_invalid_inputs():
     with pytest.raises(TypeError):
         dlx.array(5)
     with pytest.raises(ValueError):
-        dlx.array([])
-    with pytest.raises(ValueError):
-        dlx.zeros(0)
+        dlx.zeros(-1)
     with pytest.raises(ValueError):
         dlx.zeros((2, -1))
     with pytest.raises(ValueError):

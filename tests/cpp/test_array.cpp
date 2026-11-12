@@ -137,9 +137,23 @@ void test_phase033_reductions() {
 	assert(!z.all_axis(0)[0]);
 
 	Array<double> e({0});
+	assert(e.sum() == 0.0);
 	assert(e.prod() == 1.0);
 	assert(!e.any());
 	assert(e.all());
+	Array<double> ze({2, 0});
+	assert(ze.sum(0).size() == 0);
+	assert(ze.min_axis(0).size() == 0);
+	assert(ze.max_axis(0).size() == 0);
+	assert(ze.argmin(0).size() == 0);
+	assert(ze.argmax(0).size() == 0);
+	bool threw = false;
+	try {
+		ze.min_axis(1);
+	} catch (const std::invalid_argument &) {
+		threw = true;
+	}
+	assert(threw);
 	std::cout << " 0.3.3 reductions OK\n";
 }
 

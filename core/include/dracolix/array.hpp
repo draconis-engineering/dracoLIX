@@ -289,10 +289,11 @@ template <typename T> class Array {
 	// Reductions (global) — parallel if large ---------
 	// =================================================
 
-	// Sum of all elements in the array
+	// Sum of all elements in the array. The empty sum is the additive
+	// identity (0), matching NumPy.
 	T sum() const {
 		if (size_ == 0)
-			throw std::logic_error("sum of empty array");
+			return T{};
 		if (size_ < 100000) {
 			T acc = T{};
 			for (auto v : data_)
@@ -548,8 +549,7 @@ template <typename T> class Array {
 				throw std::logic_error("argmin of empty array");
 			size_t min_idx = 0;
 			for (size_t i = 1; i < size_; ++i)
-				if (static_cast<T>(data_[i]) <
-					static_cast<T>(data_[min_idx]))
+				if (static_cast<T>(data_[i]) < static_cast<T>(data_[min_idx]))
 					min_idx = i;
 			return min_idx;
 		}
@@ -565,8 +565,7 @@ template <typename T> class Array {
 				throw std::logic_error("argmax of empty array");
 			size_t max_idx = 0;
 			for (size_t i = 1; i < size_; ++i)
-				if (static_cast<T>(data_[i]) >
-					static_cast<T>(data_[max_idx]))
+				if (static_cast<T>(data_[i]) > static_cast<T>(data_[max_idx]))
 					max_idx = i;
 			return max_idx;
 		}
@@ -643,8 +642,8 @@ template <typename T> class Array {
 				std::vector<size_t> idx = unravel(flat);
 				size_t out_flat = axis_out_index(idx, axis, out);
 				if constexpr (is_complex_v<T>) {
-					double d = std::abs(static_cast<T>(data_[flat]) -
-										mu[out_flat]);
+					double d =
+						std::abs(static_cast<T>(data_[flat]) - mu[out_flat]);
 					out[out_flat] += d * d;
 				} else {
 					double d = static_cast<double>(data_[flat]) -
@@ -652,8 +651,7 @@ template <typename T> class Array {
 					out[out_flat] += d * d;
 				}
 			}
-			double denom =
-				static_cast<double>(n - static_cast<size_t>(ddof));
+			double denom = static_cast<double>(n - static_cast<size_t>(ddof));
 			for (size_t i = 0; i < out.size(); ++i)
 				out[i] /= denom;
 		}
@@ -690,26 +688,32 @@ template <typename T> class Array {
 			axis, [](T a, T b) { return static_cast<T>(a + b); }, T{});
 	}
 
-	// Returns the minimum value along the given axis
+	// Returns the minimum value along the given axis. A zero-length reduced
+	// axis has no identity, but a zero-size outer dimension simply produces an
+	// empty result (NumPy's behavior).
 	Array min_axis(size_t axis) const {
 		if constexpr (is_complex_v<T>) {
 			throw std::domain_error(
 				"min(axis) is undefined for complex arrays (no ordering)");
 		} else {
-			if (size_ == 0)
-				throw std::logic_error("min_axis empty");
+			if (axis >= ndim_)
+				throw std::out_of_range("reduce axis OOB");
+			if (shape_[axis] == 0)
+				throw std::invalid_argument("min of zero-length axis");
 			return reduce_axis_minmax(axis, true);
 		}
 	}
 
-	// Returns the maximum value along the given axis
+	// Returns the maximum value along the given axis. See min_axis.
 	Array max_axis(size_t axis) const {
 		if constexpr (is_complex_v<T>) {
 			throw std::domain_error(
 				"max(axis) is undefined for complex arrays (no ordering)");
 		} else {
-			if (size_ == 0)
-				throw std::logic_error("max_axis empty");
+			if (axis >= ndim_)
+				throw std::out_of_range("reduce axis OOB");
+			if (shape_[axis] == 0)
+				throw std::invalid_argument("max of zero-length axis");
 			return reduce_axis_minmax(axis, false);
 		}
 	}
@@ -832,9 +836,14 @@ template <typename T> class Array {
 			 --i, --ia, --ib) {
 			size_t da = ia >= 0 ? a[ia] : 1;
 			size_t db = ib >= 0 ? b[ib] : 1;
-			if (da != db && da != 1 && db != 1)
+			if (da == db)
+				res[i] = da;
+			else if (da == 1)
+				res[i] = db;
+			else if (db == 1)
+				res[i] = da;
+			else
 				throw std::invalid_argument("broadcast: incompatible shapes");
-			res[i] = std::max(da, db);
 		}
 		return res;
 	}
@@ -925,18 +934,14 @@ template <typename T> class Array {
 	}
 
 	// Truthiness under NumPy semantics: non-zero (NaN counts as non-zero).
-	static bool truthy(const inner_t &v) {
-		return static_cast<T>(v) != T{};
-	}
+	static bool truthy(const inner_t &v) { return static_cast<T>(v) != T{}; }
 
 	// Index (i64) of the min/max along an axis. Ties keep the first index.
 	Array<int64_t> arg_reduce_axis(size_t axis, bool is_min) const {
 		if (axis >= ndim_)
 			throw std::out_of_range("reduce axis OOB");
-		if (size_ == 0)
-			throw std::logic_error("argmin/argmax of empty array");
 		if (shape_[axis] == 0)
-			throw std::logic_error("argmin/argmax of empty axis");
+			throw std::invalid_argument("argmin/argmax of zero-length axis");
 		std::vector<size_t> out_shape;
 		for (size_t d = 0; d < ndim_; ++d)
 			if (d != axis)

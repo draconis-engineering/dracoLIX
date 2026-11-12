@@ -63,7 +63,7 @@ constexpr size_t kMC = DRACOLIX_GEMM_MC;
 constexpr size_t kNC = DRACOLIX_GEMM_NC;
 constexpr size_t kKC = DRACOLIX_GEMM_KC;
 
-#if DRACOLIX_HAS_TARGET_ATTR
+#if DRACOLIX_GEMM_SIMD
 // Per-thread packing scratch, grown on demand and reused across calls. One raw
 // byte buffer serves both dtypes, so an f32 GEMM never has to allocate a second
 // pool. Guarded by a mutex because ThreadPool hands blocks to workers
@@ -118,7 +118,7 @@ void pack_b(const T *B, size_t ldb, size_t kc, size_t nc, T *Bp, size_t ldb_p) {
 	}
 }
 
-#endif // DRACOLIX_HAS_TARGET_ATTR
+#endif // DRACOLIX_GEMM_SIMD
 
 } // namespace
 
@@ -126,7 +126,7 @@ void pack_b(const T *B, size_t ldb, size_t kc, size_t nc, T *Bp, size_t ldb_p) {
 // Microkernel dispatch table per scalar type. Blocking / packing / threading
 // are identical for f64 and f32; only the tile shape and the kernel differ.
 // ---------------------------------------------------------------------------
-#if DRACOLIX_HAS_TARGET_ATTR
+#if DRACOLIX_GEMM_SIMD
 template <typename T> struct Micro;
 
 template <> struct Micro<double> {
@@ -238,26 +238,20 @@ static void gemm_blocked_impl(const T *A, const T *B, T *C, size_t m, size_t n,
 							  size_t p, size_t nthreads, GEMMKernel kernel,
 							  void (*scalar_ref)(const T *, const T *, T *,
 												 size_t, size_t, size_t)) {
-#if !DRACOLIX_HAS_TARGET_ATTR
+#if !DRACOLIX_GEMM_SIMD
 	(void)nthreads;
 	(void)kernel;
 	scalar_ref(A, B, C, m, n, p);
 #else
-	// Honour the requested kernel, but never run an ISA this CPU lacks.
+	// Honour the requested kernel, but never run an ISA this CPU lacks. FMA is
+	// required by both microkernels, not only by AVX2.
 	const auto feats = cpu::detect();
-#if defined(__GNUC__) || defined(__clang__)
-	const bool cpu_avx512 = feats.avx512f && feats.avx512dq && feats.avx512vl;
-#else
-	const bool cpu_avx512 = false;
-#endif
+	const bool cpu_avx512 =
+		feats.avx512f && feats.avx512dq && feats.avx512vl && feats.fma;
+	const bool cpu_avx2 = feats.avx2 && feats.fma;
 
-	bool use512 = false;
-	if (kernel == GEMMKernel::Avx512)
-		use512 = cpu_avx512;
-	else if (kernel == GEMMKernel::Avx2)
-		use512 = false;
-
-	if (!use512 && !feats.avx2) {
+	const bool use512 = (kernel == GEMMKernel::Avx512) && cpu_avx512;
+	if (!use512 && !cpu_avx2) {
 		scalar_ref(A, B, C, m, n, p);
 		return;
 	}

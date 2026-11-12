@@ -27,6 +27,17 @@ set(DRACOLIX_CORE_SOURCES
 	core/src/kernels/gemm_blas.cpp
 )
 
+# MSVC does not support GCC/Clang per-function target attributes, so the GEMM
+# microkernels are compiled once per ISA in dedicated translation units. The
+# DLL stays portable: the wider functions are present but are only entered after
+# the runtime CPUID check in dispatch.hpp.
+if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND
+	CMAKE_SYSTEM_PROCESSOR MATCHES "^(AMD64|x86_64)$")
+	list(APPEND DRACOLIX_CORE_SOURCES
+		core/src/kernels/gemm_micro_avx2.cpp
+		core/src/kernels/gemm_micro_avx512.cpp)
+endif()
+
 if(DRACOLIX_USE_FORTRAN)
 	enable_language(Fortran)
 	set(CMAKE_Fortran_FLAGS
@@ -38,6 +49,14 @@ endif()
 add_library(dracolix_core STATIC ${DRACOLIX_CORE_SOURCES})
 # Must be PIC so it can be linked into the nanobind shared module on Linux
 set_target_properties(dracolix_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+# Per-ISA flags for the MSVC microkernel TUs (see the source list above).
+if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+	set_source_files_properties(core/src/kernels/gemm_micro_avx2.cpp
+		PROPERTIES COMPILE_OPTIONS "/arch:AVX2")
+	set_source_files_properties(core/src/kernels/gemm_micro_avx512.cpp
+		PROPERTIES COMPILE_OPTIONS "/arch:AVX512")
+endif()
 find_package(Threads REQUIRED)
 target_link_libraries(dracolix_core PUBLIC Threads::Threads)
 

@@ -1,5 +1,3 @@
-#pragma once
-
 // GPU CUDA/ROCm primitives for accelerated computing - Phase 9
 // Licensed under GPLv3+ (see LICENSE)
 
@@ -8,6 +6,10 @@
 #elif defined(__HIP_PLATFORM_AMD__) || defined(__HIP_PLATFORM_NVIDIA__)
 #include <hip/hip_runtime.h>
 #endif
+
+#if defined(__CUDACC__) || defined(__HIP_PLATFORM_AMD__) ||                    \
+	defined(__HIP_PLATFORM_NVIDIA__)
+#define GPU_CU
 
 #include <functional>
 #include <iostream>
@@ -52,3 +54,5 @@ void launch_kernel(const T *d_a, const T *d_b, T *d_c, int n) {
 
 } // namespace gpu
 } // namespace dracolix
+
+#endif

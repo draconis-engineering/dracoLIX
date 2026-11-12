@@ -553,9 +553,14 @@ std::vector<size_t> bcast_shape(const std::vector<size_t> &a,
 		 --i, --ia, --ib) {
 		size_t da = ia >= 0 ? a[ia] : 1;
 		size_t db = ib >= 0 ? b[ib] : 1;
-		if (da != db && da != 1 && db != 1)
+		if (da == db)
+			res[i] = da;
+		else if (da == 1)
+			res[i] = db;
+		else if (db == 1)
+			res[i] = da;
+		else
 			throw std::invalid_argument("broadcast: incompatible shapes");
-		res[i] = std::max(da, db);
 	}
 	return res;
 }
@@ -1183,6 +1188,7 @@ dracolix::Array<T> slice_materialize(const dracolix::Array<T> &arr,
 	std::vector<int64_t> fixed_off(nd, 0);
 	std::vector<int64_t> starts(nd, 0), steps(nd, 1);
 	std::vector<int64_t> lens(nd, 0);
+	std::vector<bool> keep(nd, false);
 	std::vector<size_t> out_shape;
 
 	for (size_t d = 0; d < nd; ++d) {
@@ -1194,17 +1200,15 @@ dracolix::Array<T> slice_materialize(const dracolix::Array<T> &arr,
 			if (i < 0 || (size_t)i >= arr.shape()[d])
 				throw nb::index_error("index out of bounds");
 			fixed_off[d] = i * (int64_t)arr.strides()[d];
-			lens[d] = 0;
 			continue;
 		}
 		size_t off0, len;
 		int64_t step;
 		dracolix::normalize_slice(ks.slice, arr.shape()[d], off0, len, step);
-		if (len == 0)
-			throw nb::value_error("zero-length slices are not supported yet");
 		starts[d] = (int64_t)off0;
 		steps[d] = step;
 		lens[d] = (int64_t)len;
+		keep[d] = true;
 		out_shape.push_back(len);
 	}
 
@@ -1219,7 +1223,7 @@ dracolix::Array<T> slice_materialize(const dracolix::Array<T> &arr,
 		int64_t src = 0;
 		size_t od = 0;
 		for (size_t d = 0; d < nd; ++d) {
-			if (lens[d] == 0) {
+			if (!keep[d]) {
 				src += fixed_off[d];
 			} else {
 				int64_t src_d = starts[d] + (int64_t)idx[od] * steps[d];
@@ -1690,10 +1694,6 @@ DlxArray buffer_to_array(const Py_buffer &view, char tag) {
 		shape[(size_t)d] = (size_t)view.shape[d];
 		n *= view.shape[d];
 	}
-	for (auto s : shape)
-		if (s == 0)
-			throw nb::value_error("empty buffers are not supported yet");
-
 	dracolix::Array<T> out(shape);
 	if (n != (Py_ssize_t)out.size())
 		throw std::logic_error("buffer size mismatch");
@@ -1856,10 +1856,13 @@ DlxArray from_list(nb::object o, std::optional<dracolix::DType> dt) {
 	bool any_complex = false;
 	walk_sequence(o, 0, shape, leaves, any_float, any_int, any_bool,
 				  any_complex);
-	dracolix::DType target = dt.value_or(
-		infer_list_dtype(any_float, any_int, any_bool, any_complex));
-	if (shape.empty() || leaves.empty())
-		throw nb::value_error("empty arrays are not supported yet");
+	// An empty sequence (at any nesting depth) has no leaves to inspect, so
+	// default to f64 like NumPy's array([]).
+	dracolix::DType target =
+		dt ? *dt
+		   : (leaves.empty()
+				  ? dracolix::DType::F64
+				  : infer_list_dtype(any_float, any_int, any_bool, any_complex));
 
 	switch (target) {
 	case dracolix::DType::F32: {
@@ -1980,8 +1983,8 @@ std::vector<size_t> parse_shape(nb::object o) {
 	std::vector<size_t> shape;
 	if (PyLong_Check(o.ptr())) {
 		int64_t n = nb::cast<int64_t>(o);
-		if (n <= 0)
-			throw nb::value_error("dimensions must be positive");
+		if (n < 0)
+			throw nb::value_error("dimensions must be non-negative");
 		shape.push_back((size_t)n);
 		return shape;
 	}
@@ -1990,8 +1993,8 @@ std::vector<size_t> parse_shape(nb::object o) {
 		for (Py_ssize_t i = 0; i < len; ++i) {
 			nb::object item = nb::steal(PySequence_GetItem(o.ptr(), i));
 			int64_t n = nb::cast<int64_t>(item);
-			if (n <= 0)
-				throw nb::value_error("dimensions must be positive");
+			if (n < 0)
+				throw nb::value_error("dimensions must be non-negative");
 			shape.push_back((size_t)n);
 		}
 		return shape;
@@ -2308,6 +2311,8 @@ nb::object dlx_sum(const DlxArray &a) {
 }
 
 nb::object dlx_min(const DlxArray &a) {
+	if (a.size() == 0)
+		throw nb::value_error("min of empty array");
 	return std::visit(
 		[](const auto &arr) -> nb::object {
 			using T = typename array_scalar<std::decay_t<decltype(arr)>>::type;
@@ -2331,6 +2336,8 @@ nb::object dlx_min(const DlxArray &a) {
 }
 
 nb::object dlx_max(const DlxArray &a) {
+	if (a.size() == 0)
+		throw nb::value_error("max of empty array");
 	return std::visit(
 		[](const auto &arr) -> nb::object {
 			using T = typename array_scalar<std::decay_t<decltype(arr)>>::type;
@@ -2353,6 +2360,8 @@ nb::object dlx_max(const DlxArray &a) {
 }
 
 nb::object dlx_mean(const DlxArray &a) {
+	if (a.size() == 0)
+		throw nb::value_error("mean of empty array");
 	return std::visit(
 		[](const auto &arr) -> nb::object {
 			using T = typename array_scalar<std::decay_t<decltype(arr)>>::type;
@@ -2397,6 +2406,8 @@ DlxArray dlx_sum_axis(const DlxArray &a, int64_t axis) {
 
 DlxArray dlx_min_axis(const DlxArray &a, int64_t axis) {
 	axis = normalize_axis(a, axis);
+	if (a.shape()[(size_t)axis] == 0)
+		throw nb::value_error("min of zero-length axis");
 	return std::visit(
 		[&](const auto &arr) -> DlxArray {
 			using T = typename array_scalar<std::decay_t<decltype(arr)>>::type;
@@ -2411,6 +2422,8 @@ DlxArray dlx_min_axis(const DlxArray &a, int64_t axis) {
 
 DlxArray dlx_max_axis(const DlxArray &a, int64_t axis) {
 	axis = normalize_axis(a, axis);
+	if (a.shape()[(size_t)axis] == 0)
+		throw nb::value_error("max of zero-length axis");
 	return std::visit(
 		[&](const auto &arr) -> DlxArray {
 			using T = typename array_scalar<std::decay_t<decltype(arr)>>::type;
@@ -2425,6 +2438,8 @@ DlxArray dlx_max_axis(const DlxArray &a, int64_t axis) {
 
 DlxArray dlx_mean_axis(const DlxArray &a, int64_t axis) {
 	axis = normalize_axis(a, axis);
+	if (a.shape()[(size_t)axis] == 0)
+		throw nb::value_error("mean of zero-length axis");
 	return std::visit(
 		[&](const auto &arr) -> DlxArray {
 			return DlxArray(arr.mean_axis((size_t)axis));
@@ -2558,8 +2573,8 @@ DlxArray dlx_argmin_axis(const DlxArray &a, int64_t axis) {
 				throw nb::type_error("argmin(axis) is undefined for complex "
 									 "arrays (no ordering)");
 			} else {
-				if (arr.size() == 0 || arr.shape()[(size_t)axis] == 0)
-					throw nb::value_error("argmin(axis) of an empty sequence");
+				if (arr.shape()[(size_t)axis] == 0)
+					throw nb::value_error("argmin of zero-length axis");
 				return DlxArray(arr.argmin((size_t)axis));
 			}
 		},
@@ -2575,8 +2590,8 @@ DlxArray dlx_argmax_axis(const DlxArray &a, int64_t axis) {
 				throw nb::type_error("argmax(axis) is undefined for complex "
 									 "arrays (no ordering)");
 			} else {
-				if (arr.size() == 0 || arr.shape()[(size_t)axis] == 0)
-					throw nb::value_error("argmax(axis) of an empty sequence");
+				if (arr.shape()[(size_t)axis] == 0)
+					throw nb::value_error("argmax of zero-length axis");
 				return DlxArray(arr.argmax((size_t)axis));
 			}
 		},
@@ -4122,8 +4137,10 @@ NB_MODULE(_dracolix_nb, m) {
 			 [](const DlxArray &a) -> bool {
 				 if (a.size() != 1)
 					 throw nb::type_error(
-						 "the truth value of an array with more "
-						 "than one element is ambiguous");
+						 a.size() == 0
+							 ? "the truth value of an empty array is ambiguous"
+							 : "the truth value of an array with more "
+							   "than one element is ambiguous");
 				 return std::visit(
 					 [](const auto &arr) -> bool {
 						 using T = typename array_scalar<

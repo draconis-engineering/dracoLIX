@@ -42,8 +42,43 @@
 #define DRACOLIX_HAS_TARGET_ATTR 0
 #endif
 
-#if DRACOLIX_HAS_TARGET_ATTR
+// MSVC has no per-function target attributes, so the kernels are emitted once
+// per ISA from dedicated translation units (gemm_micro_avx2.cpp /
+// gemm_micro_avx512.cpp) compiled with /arch:AVX2 and /arch:AVX512. That keeps
+// a single portable DLL: the wider code is present but only called after the
+// CPUID gate in dispatch.hpp passes. Everywhere else (GCC/Clang) the same
+// kernels are still inline behind target attributes.
+//
+// DRACOLIX_GEMM_SIMD - vector kernels available in this build at all.
+// DRACOLIX_GEMM_MICRO_BODY - this TU defines them (rather than only declaring).
+// DRACOLIX_GEMM_MICRO_NO_AVX2 / _NO_AVX512 - skip one ISA when defining.
+#if defined(DRACOLIX_GEMM_X86) &&                                               \
+	(DRACOLIX_HAS_TARGET_ATTR ||                                               \
+	 (defined(_MSC_VER) && !defined(__clang__) && defined(_M_X64)))
+#define DRACOLIX_GEMM_SIMD 1
+#else
+#define DRACOLIX_GEMM_SIMD 0
+#endif
+
+#if DRACOLIX_GEMM_SIMD &&                                                      \
+	(DRACOLIX_HAS_TARGET_ATTR || defined(DRACOLIX_GEMM_MICRO_DEFINE))
+#define DRACOLIX_GEMM_MICRO_BODY 1
+#else
+#define DRACOLIX_GEMM_MICRO_BODY 0
+#endif
+
+#if DRACOLIX_GEMM_SIMD
 #include <immintrin.h>
+#endif
+
+// On MSVC the kernels are defined out-of-line (one TU per ISA), so they must
+// not be `inline`: an inline function that is not used by its own translation
+// unit is not guaranteed to be emitted, which would leave the definitions in
+// the per-ISA TUs unreferenced and break the link.
+#if DRACOLIX_GEMM_MICRO_BODY && defined(_MSC_VER) && !defined(__clang__)
+#define DRACOLIX_MICRO_INLINE
+#else
+#define DRACOLIX_MICRO_INLINE inline
 #endif
 
 namespace dracolix::kernels {
@@ -62,7 +97,7 @@ namespace dracolix::kernels {
 #define DRACOLIX_MR256 6
 #define DRACOLIX_NR256 8
 
-#if DRACOLIX_HAS_TARGET_ATTR
+#if DRACOLIX_GEMM_SIMD
 
 // ---------------------------------------------------------------------------
 // Edge-tile lane masks.
@@ -85,8 +120,12 @@ namespace dracolix::kernels {
 template <int L> constexpr unsigned lane_mask(int n) {
 	static_assert(L > 0 && L <= 32,
 				  "lane_mask<L>: L must fit in an unsigned shift");
-	if (n >= L)
-		return (L == 32) ? 0xFFFFFFFFu : ((1u << L) - 1u);
+	if (n >= L) {
+		// `L & 31` keeps the shift itself defined for L == 32 (MSVC C4293);
+		// the L == 32 case takes the all-ones arm.
+		constexpr unsigned all = (L == 32) ? 0xFFFFFFFFu : ((1u << (L & 31)) - 1u);
+		return all;
+	}
 	if (n <= 0)
 		return 0u;
 	return (1u << n) - 1u;
@@ -112,8 +151,9 @@ static_assert(DRACOLIX_NR256 <= 32, "f64 AVX2 tile wider than lane_mask");
 // ---------------------------------------------------------------------------
 // Full MR x NR tile.
 // ---------------------------------------------------------------------------
+#if DRACOLIX_GEMM_MICRO_BODY && !defined(DRACOLIX_GEMM_MICRO_NO_AVX512)
 DRACOLIX_TARGET_AVX512
-inline void micro_gemm_512(const double *__restrict Ap, int lda,
+DRACOLIX_MICRO_INLINE void micro_gemm_512(const double *__restrict Ap, int lda,
 						   const double *__restrict Bp, int ldb,
 						   double *__restrict C, int ldc, int k) {
 	constexpr int MR = DRACOLIX_MR512;
@@ -147,9 +187,11 @@ inline void micro_gemm_512(const double *__restrict Ap, int lda,
 		_mm512_storeu_pd(&C[i * ldc + 16], c[i][2]);
 	}
 }
+#endif
 
+#if DRACOLIX_GEMM_MICRO_BODY && !defined(DRACOLIX_GEMM_MICRO_NO_AVX2)
 DRACOLIX_TARGET_AVX2
-inline void micro_gemm_256(const double *__restrict Ap, int lda,
+DRACOLIX_MICRO_INLINE void micro_gemm_256(const double *__restrict Ap, int lda,
 						   const double *__restrict Bp, int ldb,
 						   double *__restrict C, int ldc, int k) {
 	constexpr int MR = DRACOLIX_MR256;
@@ -180,6 +222,7 @@ inline void micro_gemm_256(const double *__restrict Ap, int lda,
 		_mm256_storeu_pd(&C[i * ldc + 4], c[i][1]);
 	}
 }
+#endif
 
 // ---------------------------------------------------------------------------
 // Edge kernels.
@@ -188,8 +231,9 @@ inline void micro_gemm_256(const double *__restrict Ap, int lda,
 // scalar fallback path; row remainder (mr < MR) just stops the row loop, and
 // every read is clamped to a valid tile row so nothing reads out of bounds.
 // ---------------------------------------------------------------------------
+#if DRACOLIX_GEMM_MICRO_BODY && !defined(DRACOLIX_GEMM_MICRO_NO_AVX512)
 DRACOLIX_TARGET_AVX512
-inline void micro_gemm_512_partial(const double *__restrict Ap, int lda,
+DRACOLIX_MICRO_INLINE void micro_gemm_512_partial(const double *__restrict Ap, int lda,
 								   const double *__restrict Bp, int ldb,
 								   double *__restrict C, int ldc, int k, int mr,
 								   int nr) {
@@ -234,9 +278,11 @@ inline void micro_gemm_512_partial(const double *__restrict Ap, int lda,
 			_mm512_mask_storeu_pd(&C[i * ldc + 16], m2, c[i][2]);
 	}
 }
+#endif
 
+#if DRACOLIX_GEMM_MICRO_BODY && !defined(DRACOLIX_GEMM_MICRO_NO_AVX2)
 DRACOLIX_TARGET_AVX2
-inline void micro_gemm_256_partial(const double *__restrict Ap, int lda,
+DRACOLIX_MICRO_INLINE void micro_gemm_256_partial(const double *__restrict Ap, int lda,
 								   const double *__restrict Bp, int ldb,
 								   double *__restrict C, int ldc, int k, int mr,
 								   int nr) {
@@ -283,8 +329,9 @@ inline void micro_gemm_256_partial(const double *__restrict Ap, int lda,
 			_mm256_maskstore_pd(&C[i * ldc + 4], m1, c[i][1]);
 	}
 }
+#endif
 
-#endif // DRACOLIX_HAS_TARGET_ATTR
+#endif // DRACOLIX_GEMM_SIMD
 
 // ===========================================================================
 // f32 microkernels
@@ -295,7 +342,7 @@ inline void micro_gemm_256_partial(const double *__restrict Ap, int lda,
 //   AVX2:    6x16 (12 accumulators + 2 ymm of 16)
 // Without these, f32 falls back to scalar and gets no speedup at all.
 // ===========================================================================
-#if DRACOLIX_HAS_TARGET_ATTR
+#if DRACOLIX_GEMM_SIMD
 
 #define DRACOLIX_MR512_F 8
 #define DRACOLIX_NR512_F 32
@@ -308,8 +355,9 @@ inline void micro_gemm_256_partial(const double *__restrict Ap, int lda,
 static_assert(DRACOLIX_NR512_F <= 32, "f32 AVX-512 tile wider than lane_mask");
 static_assert(DRACOLIX_NR256_F <= 32, "f32 AVX2 tile wider than lane_mask");
 
+#if DRACOLIX_GEMM_MICRO_BODY && !defined(DRACOLIX_GEMM_MICRO_NO_AVX512)
 DRACOLIX_TARGET_AVX512
-inline void micro_gemm_512_f(const float *__restrict Ap, int lda,
+DRACOLIX_MICRO_INLINE void micro_gemm_512_f(const float *__restrict Ap, int lda,
 							 const float *__restrict Bp, int ldb,
 							 float *__restrict C, int ldc, int k) {
 	constexpr int MR = DRACOLIX_MR512_F;
@@ -339,9 +387,11 @@ inline void micro_gemm_512_f(const float *__restrict Ap, int lda,
 		_mm512_storeu_ps(&C[i * ldc + 16], c[i][1]);
 	}
 }
+#endif
 
+#if DRACOLIX_GEMM_MICRO_BODY && !defined(DRACOLIX_GEMM_MICRO_NO_AVX2)
 DRACOLIX_TARGET_AVX2
-inline void micro_gemm_256_f(const float *__restrict Ap, int lda,
+DRACOLIX_MICRO_INLINE void micro_gemm_256_f(const float *__restrict Ap, int lda,
 							 const float *__restrict Bp, int ldb,
 							 float *__restrict C, int ldc, int k) {
 	constexpr int MR = DRACOLIX_MR256_F;
@@ -371,10 +421,12 @@ inline void micro_gemm_256_f(const float *__restrict Ap, int lda,
 		_mm256_storeu_ps(&C[i * ldc + 8], c[i][1]);
 	}
 }
+#endif
 
 // --- f32 edge kernels ------------------------------------------------------
+#if DRACOLIX_GEMM_MICRO_BODY && !defined(DRACOLIX_GEMM_MICRO_NO_AVX512)
 DRACOLIX_TARGET_AVX512
-inline void micro_gemm_512_f_partial(const float *__restrict Ap, int lda,
+DRACOLIX_MICRO_INLINE void micro_gemm_512_f_partial(const float *__restrict Ap, int lda,
 									 const float *__restrict Bp, int ldb,
 									 float *__restrict C, int ldc, int k,
 									 int mr, int nr) {
@@ -416,9 +468,11 @@ inline void micro_gemm_512_f_partial(const float *__restrict Ap, int lda,
 			_mm512_mask_storeu_ps(&C[i * ldc + 16], m1, c[i][1]);
 	}
 }
+#endif
 
+#if DRACOLIX_GEMM_MICRO_BODY && !defined(DRACOLIX_GEMM_MICRO_NO_AVX2)
 DRACOLIX_TARGET_AVX2
-inline void micro_gemm_256_f_partial(const float *__restrict Ap, int lda,
+DRACOLIX_MICRO_INLINE void micro_gemm_256_f_partial(const float *__restrict Ap, int lda,
 									 const float *__restrict Bp, int ldb,
 									 float *__restrict C, int ldc, int k,
 									 int mr, int nr) {
@@ -465,7 +519,50 @@ inline void micro_gemm_256_f_partial(const float *__restrict Ap, int lda,
 			_mm256_maskstore_ps(&C[i * ldc + 8], m1, c[i][1]);
 	}
 }
+#endif
 
-#endif // DRACOLIX_HAS_TARGET_ATTR
+#endif // DRACOLIX_GEMM_SIMD
+
+// MSVC consumers see declarations here; the definitions live in the per-ISA
+// translation units so they can be compiled with /arch:AVX2 and /arch:AVX512.
+#if DRACOLIX_GEMM_SIMD && !DRACOLIX_GEMM_MICRO_BODY
+DRACOLIX_TARGET_AVX512
+void micro_gemm_512(const double *__restrict Ap, int lda,
+					const double *__restrict Bp, int ldb, double *__restrict C,
+					int ldc, int k);
+DRACOLIX_TARGET_AVX2
+void micro_gemm_256(const double *__restrict Ap, int lda,
+					const double *__restrict Bp, int ldb, double *__restrict C,
+					int ldc, int k);
+DRACOLIX_TARGET_AVX512
+void micro_gemm_512_partial(const double *__restrict Ap, int lda,
+							const double *__restrict Bp, int ldb,
+							double *__restrict C, int ldc, int k, int mr,
+							int nr);
+DRACOLIX_TARGET_AVX2
+void micro_gemm_256_partial(const double *__restrict Ap, int lda,
+							const double *__restrict Bp, int ldb,
+							double *__restrict C, int ldc, int k, int mr,
+							int nr);
+
+DRACOLIX_TARGET_AVX512
+void micro_gemm_512_f(const float *__restrict Ap, int lda,
+					  const float *__restrict Bp, int ldb, float *__restrict C,
+					  int ldc, int k);
+DRACOLIX_TARGET_AVX2
+void micro_gemm_256_f(const float *__restrict Ap, int lda,
+					  const float *__restrict Bp, int ldb, float *__restrict C,
+					  int ldc, int k);
+DRACOLIX_TARGET_AVX512
+void micro_gemm_512_f_partial(const float *__restrict Ap, int lda,
+							  const float *__restrict Bp, int ldb,
+							  float *__restrict C, int ldc, int k, int mr,
+							  int nr);
+DRACOLIX_TARGET_AVX2
+void micro_gemm_256_f_partial(const float *__restrict Ap, int lda,
+							  const float *__restrict Bp, int ldb,
+							  float *__restrict C, int ldc, int k, int mr,
+							  int nr);
+#endif
 
 } // namespace dracolix::kernels

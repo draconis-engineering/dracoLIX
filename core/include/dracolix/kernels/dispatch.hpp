@@ -108,10 +108,12 @@ inline GEMMBackend gemm_backend() {
 	// Widest vector kernel this CPU can actually run. The requirements mirror
 	// the `target` attributes on the kernels themselves.
 	const auto &f = gemm_cpu_features();
-	const bool cpu_avx512 = f.avx512f && f.avx512dq && f.avx512vl && f.avx2;
+	const bool cpu_avx2 = f.avx2 && f.fma;
+	const bool cpu_avx512 =
+		f.avx512f && f.avx512dq && f.avx512vl && f.avx2 && f.fma;
 	if (cpu_avx512)
 		out.kernel = GEMMKernel::Avx512;
-	else if (f.avx2)
+	else if (cpu_avx2)
 		out.kernel = GEMMKernel::Avx2;
 	else
 		out.kernel = GEMMKernel::Scalar;
@@ -129,12 +131,12 @@ inline GEMMBackend gemm_backend() {
 	} else if (std::strcmp(e, "avx2") == 0) {
 		// Clamped to what this CPU can run, so kernel_name() never lies.
 		out.backend = GEMMBackendKind::Native;
-		out.kernel = f.avx2 ? GEMMKernel::Avx2 : GEMMKernel::Scalar;
+		out.kernel = cpu_avx2 ? GEMMKernel::Avx2 : GEMMKernel::Scalar;
 	} else if (std::strcmp(e, "avx512") == 0) {
 		out.backend = GEMMBackendKind::Native;
 		out.kernel = cpu_avx512
 						 ? GEMMKernel::Avx512
-						 : (f.avx2 ? GEMMKernel::Avx2 : GEMMKernel::Scalar);
+						 : (cpu_avx2 ? GEMMKernel::Avx2 : GEMMKernel::Scalar);
 	}
 	// "native" and unset both mean: keep the probed choice.
 
