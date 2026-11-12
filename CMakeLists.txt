@@ -1,5 +1,5 @@
-set(DLIXVERSION "0.3.5")
-set(DLIXVERSION_BASE "0.3.5")
+set(DLIXVERSION "0.3.6")
+set(DLIXVERSION_BASE "0.3.6")
 
 cmake_minimum_required(VERSION 3.20)
 project(dracolix VERSION ${DLIXVERSION_BASE} LANGUAGES CXX)

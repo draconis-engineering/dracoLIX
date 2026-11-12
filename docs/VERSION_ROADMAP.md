@@ -16,7 +16,7 @@ release-level scope, semantic decisions, and deferrals.
 
 ---
 
-## v0.3.5 (In progress)
+## v0.3.5/6 (RELEASED)
 
 ### Goals
 
@@ -67,7 +67,7 @@ Add the NumPy-style elementwise selection helpers that were deferred from the
 - [x] Python tests (numpy cross-checks where available)
 - [x] CHANGELOG + version bump
 - [x] pytest + ctest green
-- [ ] Tag and publish v0.3.5
+- [x] Tag and publish v0.3.5
 
 ---
 
@@ -148,11 +148,11 @@ Windows/MSVC GEMM fix found while benchmarking 0.3.5.
   `ValueError` (we keep explicit errors instead of NumPy's NaN + warning).
 - Axis reductions over a zero-length reduced axis: `sum -> zeros`,
   `prod -> ones`, `any -> False`, `all -> True`; stats raise.
-- If the *output* is empty because an outer dimension is zero (for example
+- If the _output_ is empty because an outer dimension is zero (for example
   `zeros((2, 0)).min(axis=0)`), return an empty result instead of raising;
-  only a zero-length *reduced* axis raises (matching NumPy).
+  only a zero-length _reduced_ axis raises (matching NumPy).
 - Broadcasting with a zero dimension follows NumPy (`(0, 3) + (1, 3) ->
-  (0, 3)`); `broadcast_shape` must not widen `0` to `1`.
+(0, 3)`); `broadcast_shape` must not widen `0` to `1`.
 - GEMM: build the AVX2/AVX-512 microkernels on MSVC via per-ISA translation
   units (`/arch:AVX2`, `/arch:AVX512`), require FMA in dispatch, and cover the
   blocked/tile edge shapes from Python so the wheel build exercises them.
@@ -213,11 +213,11 @@ the missing elementwise math (ufunc) surface.
 - Complex `std`/`var`: compute from the modulus and return real `f64`.
 - Bind `std`/`var` (global + axis + `ddof`) to Python.
 - Arithmetic completeness:
-  - `//` and `%` (both directions), with Python/NumPy floor/remainder signs.
-  - unary `+`, fix unary `-` for bool (raise, like NumPy).
-  - `~`, `&`, `|`, `^` (bool + integers only).
-  - `<<` and `>>` (integers only).
-  - `pow`/`rpow` already exist; keep semantics, add tests.
+    - `//` and `%` (both directions), with Python/NumPy floor/remainder signs.
+    - unary `+`, fix unary `-` for bool (raise, like NumPy).
+    - `~`, `&`, `|`, `^` (bool + integers only).
+    - `<<` and `>>` (integers only).
+    - `pow`/`rpow` already exist; keep semantics, add tests.
 - Elementwise math (module-level, NumPy-style): `sqrt`, `square`, `exp`,
   `expm1`, `log`, `log1p`, `log2`, `log10`, `sin`, `cos`, `tan`, `asin`,
   `acos`, `atan`, `sinh`, `cosh`, `tanh`, `floor`, `ceil`, `trunc`,
@@ -344,19 +344,19 @@ Python.
    `True`. Existing `sum`/`min`/`max`/`mean` keep raising on empty (deferred
    alignment, see out-of-scope). Note: the Python layer still rejects
    construction of empty/zero-length arrays (`ValueError: empty arrays are not
-   supported yet`), so these identities are covered by the C++ tests until
+supported yet`), so these identities are covered by the C++ tests until
    empty-array support lands.
-   *Rationale:* new surface should not inherit the old inconsistency.
+   _Rationale:_ new surface should not inherit the old inconsistency.
 2. **`prod` boolean semantics:** `prod` on `bool` returns `i64` `0`/`1`
    (logical AND) for the scalar form and an `i64` array along an axis, matching
    `numpy.prod`. `min` on `bool` returns `bool` logical AND (`all`); `max`
    returns `bool` logical OR (`any`), matching `numpy.min`/`numpy.max`.
-   *Rationale:* NumPy parity; also fixes the current `min` bug.
+   _Rationale:_ NumPy parity; also fixes the current `min` bug.
 3. **`argmin`/`argmax`:** scalar forms return a Python `int` (flat C-order
    index); axis forms return `i64` arrays with the reduced axis removed.
    Empty arrays / zero-length reduced axes raise `ValueError`; complex arrays
    raise `TypeError` (no ordering). Negative axes are normalized.
-   *Rationale:* matches NumPy dtypes and the library's existing complex policy.
+   _Rationale:_ matches NumPy dtypes and the library's existing complex policy.
 4. **`any`/`all`:** scalar forms return a Python `bool`; axis forms return
    `bool` arrays. Truthiness is "non-zero" for all dtypes; NaN is truthy and
    complex is truthy when either part is non-zero (NumPy). Negative axes
@@ -365,7 +365,7 @@ Python.
    converting them with the same path as `array()`; `str` is not accepted as a
    numeric sequence. Buffer objects (`bytes`, `memoryview`, `numpy.ndarray`)
    continue to go through the existing buffer path.
-   *Rationale:* `arr < [1, 2, 3]` and `arr + [1, 2, 3]` should behave like
+   _Rationale:_ `arr < [1, 2, 3]` and `arr + [1, 2, 3]` should behave like
    NumPy; one coercion path avoids divergent semantics.
 6. **Axis normalization** is shared: `-ndim <= axis < ndim`; anything else is
    `IndexError`.
@@ -383,19 +383,19 @@ Python.
 ### Implementation notes
 
 - Core: `core/include/dracolix/array.hpp`
-  - `prod()` must seed from the first element (or identity for empty), not
-    `T{}` (`array.hpp:472`).
-  - `prod(axis)` must pass multiply-identity `T{1}`, not `T{}`
-    (`array.hpp:560`).
-  - New `argmin_axis` / `argmax_axis` return `Array<int64_t>`; do not reuse
-    `reduce_axis_minmax` (it returns values).
-  - New `any`/`all` global + `any_axis`/`all_axis`.
+    - `prod()` must seed from the first element (or identity for empty), not
+      `T{}` (`array.hpp:472`).
+    - `prod(axis)` must pass multiply-identity `T{1}`, not `T{}`
+      (`array.hpp:560`).
+    - New `argmin_axis` / `argmax_axis` return `Array<int64_t>`; do not reuse
+      `reduce_axis_minmax` (it returns values).
+    - New `any`/`all` global + `any_axis`/`all_axis`.
 - Bindings: `bindings/python/src/dracolix_nb.cpp`
-  - New `dlx_prod`, `dlx_prod_axis`, `dlx_argmin`, `dlx_argmax`,
-    `dlx_argmin_axis`, `dlx_argmax_axis`, `dlx_any`, `dlx_all`,
-    `dlx_any_axis`, `dlx_all_axis`; register on `Array`.
-  - Fix bool branch of `dlx_min` (`dracolix_nb.cpp:2081`).
-  - Extend `coerce_operand` (`dracolix_nb.cpp:753`) for sequences.
+    - New `dlx_prod`, `dlx_prod_axis`, `dlx_argmin`, `dlx_argmax`,
+      `dlx_argmin_axis`, `dlx_argmax_axis`, `dlx_any`, `dlx_all`,
+      `dlx_any_axis`, `dlx_all_axis`; register on `Array`.
+    - Fix bool branch of `dlx_min` (`dracolix_nb.cpp:2081`).
+    - Extend `coerce_operand` (`dracolix_nb.cpp:753`) for sequences.
 - Stubs: `bindings/python/dracolix/__init__.pyi` (authoritative).
 
 ### Testing plan
