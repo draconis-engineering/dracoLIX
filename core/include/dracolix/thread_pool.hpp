@@ -5,6 +5,7 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <cstdlib>
 #include <functional>
 #include <future>
 #include <mutex>
@@ -16,7 +17,19 @@ namespace dracolix {
 
 class ThreadPool {
   public:
-	explicit ThreadPool(size_t n = std::thread::hardware_concurrency()) {
+	// Allow benchmarks and deployments to cap the pool without a rebuild.
+	// Invalid or zero values fall back to the hardware thread count.
+	static size_t default_threads() {
+		if (const char *e = std::getenv("DRACOLIX_NUM_THREADS")) {
+			char *end = nullptr;
+			unsigned long v = std::strtoul(e, &end, 10);
+			if (end && *end == '\0' && v > 0)
+				return (size_t)v;
+		}
+		return std::thread::hardware_concurrency();
+	}
+
+	explicit ThreadPool(size_t n = default_threads()) {
 		if (n == 0)
 			n = 2;
 		n_threads_ = n;

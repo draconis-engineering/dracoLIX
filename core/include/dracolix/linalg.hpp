@@ -106,7 +106,6 @@ inline Array<double> matmul<double>(const Array<double> &A,
 			throw std::invalid_argument("matmul requires contiguous RowMajor");
 		size_t m = A.shape()[0], n = A.shape()[1], p = B.shape()[1];
 		Array<double> C({m, p});
-		std::fill(C.data(), C.data() + C.size(), 0.0);
 		kernels::dispatch_gemm_f64(A.data(), B.data(), C.data(), m, n, p);
 		return C;
 	}
@@ -122,7 +121,6 @@ inline Array<double> matmul<double>(const Array<double> &A,
 	res_shape.push_back(m);
 	res_shape.push_back(p);
 	Array<double> C(res_shape);
-	std::fill(C.data(), C.data() + C.size(), 0.0);
 	// iterate batches
 	size_t batch_total = 1;
 	for (auto s : res_batch)
@@ -161,7 +159,6 @@ inline Array<float> matmul<float>(const Array<float> &A,
 	if (A.ndim() == 2 && B.ndim() == 2) {
 		size_t m = A.shape()[0], n = A.shape()[1], p = B.shape()[1];
 		Array<float> C({m, p});
-		std::fill(C.data(), C.data() + C.size(), 0.0f);
 		kernels::dispatch_gemm_f32(A.data(), B.data(), C.data(), m, n, p);
 		return C;
 	}
@@ -174,7 +171,6 @@ inline Array<float> matmul<float>(const Array<float> &A,
 	res_shape.push_back(m);
 	res_shape.push_back(p);
 	Array<float> C(res_shape);
-	std::fill(C.data(), C.data() + C.size(), 0.0f);
 	size_t batch_total = 1;
 	for (auto s : res_batch)
 		batch_total *= s;
@@ -215,7 +211,6 @@ template <typename T> Array<T> matmul(const Array<T> &A, const Array<T> &B) {
 		res_shape.push_back(m);
 		res_shape.push_back(p);
 		Array<T> C(res_shape);
-		std::fill(C.data(), C.data() + C.size(), T{});
 		size_t batch_total = 1;
 		for (auto s : res_batch)
 			batch_total *= s;
@@ -265,7 +260,6 @@ template <typename T> Array<T> matmul(const Array<T> &A, const Array<T> &B) {
 		res_shape.push_back(m);
 		res_shape.push_back(p);
 		Array<T> C(res_shape);
-		std::fill(C.data(), C.data() + C.size(), T{});
 		size_t batch_total = 1;
 		for (auto s : res_batch)
 			batch_total *= s;
@@ -429,7 +423,6 @@ Array<T> dot_batched(const Array<T> &A, const Array<T> &B) {
 		C[0] = dot(A, B);
 		return C;
 	}
-	std::fill(C.data(), C.data() + C.size(), T{});
 	size_t batch_total = 1;
 	for (auto s : res_batch)
 		batch_total *= s;

@@ -256,14 +256,24 @@ static void gemm_blocked_impl(const T *A, const T *B, T *C, size_t m, size_t n,
 		return;
 	}
 
-	// Split M into cache-blocked row panels, one per worker. Panels are
-	// disjoint in C, so no locking and no false sharing. One panel when it is
-	// small.
-	const size_t rows_per_panel = kMC;
-	const size_t m_panels = (m + rows_per_panel - 1) / rows_per_panel;
+	// Split M into row panels, one per worker. Panels are disjoint in C, so
+	// no locking and no false sharing. Split evenly instead of using fixed
+	// 256-row panels: with, say, 12 cache panels and 8 workers the fixed split
+	// leaves four workers with twice the work of the others. Rounding to a
+	// multiple of the microkernel height keeps every panel tile-aligned.
+	const size_t m_panels = (m + kMC - 1) / kMC;
 	size_t panels = 1;
 	if (m_panels > 1 && nthreads > 1)
 		panels = std::min(m_panels, nthreads);
+
+	size_t rows_per_panel = m;
+	if (panels > 1) {
+		using Mi = Micro<T>;
+		const size_t MR = use512 ? Mi::MR512 : Mi::MR256;
+		rows_per_panel = (m + panels - 1) / panels;
+		rows_per_panel = ((rows_per_panel + MR - 1) / MR) * MR;
+		panels = (m + rows_per_panel - 1) / rows_per_panel;
+	}
 
 	ThreadPool &pool = ThreadPool::global();
 	if (panels == 1) {
@@ -278,7 +288,7 @@ static void gemm_blocked_impl(const T *A, const T *B, T *C, size_t m, size_t n,
 		futs.emplace_back(pool.enqueue([&, t] {
 			for (;;) {
 				const size_t pi = next.fetch_add(1);
-				if (pi >= m_panels)
+				if (pi >= panels)
 					break;
 				const size_t i0 = pi * rows_per_panel;
 				const size_t mc = std::min(rows_per_panel, m - i0);
