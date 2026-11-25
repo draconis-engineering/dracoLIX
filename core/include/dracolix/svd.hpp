@@ -45,8 +45,9 @@ inline SvdResult svd(const Array<double> &A, double tol = 1e-10) {
 	for (size_t i = 0; i < n; ++i)
 		if (eig.values[i] > tol)
 			++r;
+
 	// If rank 0, still return empty? Keep at least 0
-	Array<double> S({r}); // NOTE change to {r, 1}?
+	Array<double> S({r});
 	Array<double> V({n, r});
 	for (size_t j = 0; j < r; ++j) {
 		double ev = eig.values[j];
